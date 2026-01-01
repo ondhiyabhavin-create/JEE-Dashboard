@@ -34,17 +34,32 @@ router.post('/', async (req, res) => {
     const visit = new Visit(req.body);
     await visit.save();
     
-    // Send instant reminder immediately (runs in background, doesn't block the response)
-    setImmediate(async () => {
-      try {
-        await sendInstantReminder(visit._id);
-        // Also check for scheduled reminders (24h and 6h) in case instant wasn't sent
-        await check24HourReminders();
-        await check6HourReminders();
-      } catch (error) {
-        console.error('Error sending instant reminder after visit creation:', error);
+    // Send instant reminder immediately
+    // In Lambda, we need to await this to ensure it executes before Lambda terminates
+    // Lambda functions terminate after response, so we must complete email sending first
+    try {
+      console.log(`📬 Visit created with ID: ${visit._id}, triggering instant reminder...`);
+      // Await the email sending to ensure it completes in Lambda
+      // Use Promise.race with timeout to prevent blocking too long
+      const emailPromise = sendInstantReminder(visit._id);
+      const timeoutPromise = new Promise((resolve) => 
+        setTimeout(() => resolve({ timeout: true }), 5000)
+      );
+      
+      // Race between email sending and timeout (5 seconds max wait)
+      const result = await Promise.race([emailPromise, timeoutPromise]);
+      
+      if (result && result.timeout) {
+        console.warn(`⚠️  Instant reminder for visit ${visit._id} timed out after 5 seconds`);
+        // Continue anyway - email might still send in background
+      } else {
+        console.log(`✅ Instant reminder process completed for visit ${visit._id}`);
       }
-    });
+    } catch (error) {
+      // Don't fail the request if email fails
+      console.error('❌ Error sending instant reminder after visit creation:', error);
+      console.error('Error stack:', error.stack);
+    }
     
     res.status(201).json(visit);
   } catch (error) {
@@ -71,17 +86,31 @@ router.put('/:id', async (req, res) => {
       visit.notified6h = false;
       await visit.save();
       
-      // Send instant reminder and check for scheduled reminders
-      setImmediate(async () => {
-        try {
-          await sendInstantReminder(visit._id);
-          // Also check for scheduled reminders (24h and 6h) in case instant wasn't sent
-          await check24HourReminders();
-          await check6HourReminders();
-        } catch (error) {
-          console.error('Error sending instant reminder after visit update:', error);
+      // Send instant reminder immediately
+      // In Lambda, we need to await this to ensure it executes before Lambda terminates
+      try {
+        console.log(`📬 Visit updated with ID: ${visit._id}, triggering instant reminder...`);
+        // Await the email sending to ensure it completes in Lambda
+        // Use Promise.race with timeout to prevent blocking too long
+        const emailPromise = sendInstantReminder(visit._id);
+        const timeoutPromise = new Promise((resolve) => 
+          setTimeout(() => resolve({ timeout: true }), 5000)
+        );
+        
+        // Race between email sending and timeout (5 seconds max wait)
+        const result = await Promise.race([emailPromise, timeoutPromise]);
+        
+        if (result && result.timeout) {
+          console.warn(`⚠️  Instant reminder for visit ${visit._id} timed out after 5 seconds`);
+          // Continue anyway - email might still send in background
+        } else {
+          console.log(`✅ Instant reminder process completed for visit ${visit._id}`);
         }
-      });
+      } catch (error) {
+        // Don't fail the request if email fails
+        console.error('❌ Error sending instant reminder after visit update:', error);
+        console.error('Error stack:', error.stack);
+      }
     }
     
     res.json(visit);

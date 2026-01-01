@@ -35,10 +35,10 @@ const check24HourReminders = async () => {
     // Get header name once for all emails
     const headerName = await getHeaderName();
     
-    // Find all visits that haven't been notified for 24h and are in the future
+    // Find all visits that haven't been notified for 24h
+    // We'll check the actual datetime in the loop to ensure they're in the future
     const visits = await Visit.find({
-      notified24h: false,
-      visitDate: { $gte: now } // Only future visits
+      notified24h: false
     }).populate('studentId', 'name email');
 
     console.log(`📋 Found ${visits.length} visits to check for 24h reminders`);
@@ -53,6 +53,11 @@ const check24HourReminders = async () => {
       const visitDateTime = getVisitDateTime(visit.visitDate, visit.visitTime || '10:00');
       const timeDiff = visitDateTime.getTime() - now.getTime();
       const hoursUntil = timeDiff / (1000 * 60 * 60);
+      
+      // Skip if visit is in the past
+      if (hoursUntil <= 0) {
+        continue;
+      }
       
       // Debug logging
       console.log(`🔍 [24h Check] Visit ${visit._id}: ${hoursUntil.toFixed(2)}h until visit, student: ${student.name}, email: ${student.email}`);
@@ -69,7 +74,7 @@ const check24HourReminders = async () => {
             '24h',
             visit.assignment || '',
             visit.remarks || '',
-            null,
+            hoursUntil, // Pass actual hours until for better email content
             headerName
           );
           
@@ -80,6 +85,7 @@ const check24HourReminders = async () => {
           console.log(`✅ 24-hour email reminder sent to ${student.email} for visit on ${visit.visitDate}`);
         } catch (error) {
           console.error(`❌ Failed to send 24-hour email reminder to ${student.email}:`, error.message);
+          console.error('Full error:', error);
         }
       }
     }
@@ -98,10 +104,10 @@ const check6HourReminders = async () => {
     // Get header name once for all emails
     const headerName = await getHeaderName();
     
-    // Find all visits that haven't been notified for 6h and are in the future
+    // Find all visits that haven't been notified for 6h
+    // We'll check the actual datetime in the loop to ensure they're in the future
     const visits = await Visit.find({
-      notified6h: false,
-      visitDate: { $gte: now } // Only future visits
+      notified6h: false
     }).populate('studentId', 'name email');
 
     console.log(`📋 Found ${visits.length} visits to check for 6h reminders`);
@@ -117,6 +123,11 @@ const check6HourReminders = async () => {
       const timeDiff = visitDateTime.getTime() - now.getTime();
       const hoursUntil = timeDiff / (1000 * 60 * 60);
       
+      // Skip if visit is in the past
+      if (hoursUntil <= 0) {
+        continue;
+      }
+      
       // Debug logging
       console.log(`🔍 [6h Check] Visit ${visit._id}: ${hoursUntil.toFixed(2)}h until visit, student: ${student.name}, email: ${student.email}`);
 
@@ -131,7 +142,7 @@ const check6HourReminders = async () => {
             '6h',
             visit.assignment || '',
             visit.remarks || '',
-            null,
+            hoursUntil, // Pass actual hours until for better email content
             headerName
           );
           
@@ -142,6 +153,7 @@ const check6HourReminders = async () => {
           console.log(`✅ 6-hour email reminder sent to ${student.email} for visit on ${visit.visitDate}`);
         } catch (error) {
           console.error(`❌ Failed to send 6-hour email reminder to ${student.email}:`, error.message);
+          console.error('Full error:', error);
         }
       }
     }
@@ -197,35 +209,63 @@ const sendInstantReminder = async (visitId) => {
     // Get header name
     const headerName = await getHeaderName();
 
-    // Send instant reminder
+    // Send instant reminder - always use 'instant' type for instant reminders
     try {
-      await sendVisitReminder(
+      console.log(`📧 Attempting to send instant reminder email to ${student.email} for visit ${visitId}...`);
+      console.log(`   Student: ${student.name}, Email: ${student.email}`);
+      console.log(`   Visit Date: ${visit.visitDate}, Visit Time: ${visit.visitTime || '10:00'}`);
+      console.log(`   Hours until visit: ${hoursUntil.toFixed(2)}`);
+      console.log(`   Email User: ${process.env.EMAIL_USER || 'not set'}`);
+      console.log(`   Email Password: ${process.env.EMAIL_PASSWORD ? '***set***' : 'not set'}`);
+      
+      const result = await sendVisitReminder(
         student.email,
         student.name,
         visit.visitDate,
         visit.visitTime || '10:00',
-        hoursUntil >= 24 ? '24h' : hoursUntil >= 6 ? '6h' : 'instant', // Use appropriate type
+        'instant', // Always use 'instant' type for instant reminders
         visit.assignment || '',
         visit.remarks || '',
         hoursUntil, // Pass actual hours until visit
         headerName
       );
 
-      // Mark flags based on hours until to prevent duplicate reminders
-      // If visit is less than 24h away, we've already sent instant, so skip 24h reminder
-      // If visit is less than 6h away, we've already sent instant, so skip 6h reminder
-      // If visit is more than 24h away, instant was sent, but 24h and 6h reminders will still be sent later
-      if (hoursUntil < 24) {
-        visit.notified24h = true; // Mark so 24h reminder doesn't send (instant already sent)
-      }
-      if (hoursUntil < 6) {
-        visit.notified6h = true; // Mark so 6h reminder doesn't send (instant already sent)
-      }
-      await visit.save();
+      if (result && result.success) {
+        // Mark flags based on hours until to prevent duplicate reminders
+        // IMPORTANT: Only mark flags if visit is within the reminder window
+        // If visit is MORE than 24h away, keep notified24h=false so 24h reminder can be sent later
+        // If visit is MORE than 6h away, keep notified6h=false so 6h reminder can be sent later
+        // This ensures all 3 emails are sent: instant, 24h before, and 6h before
+        if (hoursUntil < 24) {
+          // Visit is less than 24h away, so we've already sent instant reminder
+          // Skip the 24h reminder since it's too close
+          visit.notified24h = true;
+        }
+        // Note: We don't set notified24h=false here if hoursUntil >= 24, it stays false (default)
+        
+        if (hoursUntil < 6) {
+          // Visit is less than 6h away, so we've already sent instant reminder
+          // Skip the 6h reminder since it's too close
+          visit.notified6h = true;
+        }
+        // Note: We don't set notified6h=false here if hoursUntil >= 6, it stays false (default)
+        
+        await visit.save();
 
-      console.log(`✅ Instant email reminder sent to ${student.email} for visit on ${visit.visitDate} (${hoursUntil.toFixed(1)}h notice)`);
+        console.log(`✅ Instant email reminder sent successfully to ${student.email} for visit on ${visit.visitDate} (${hoursUntil.toFixed(1)}h notice)`);
+        console.log(`   📌 Reminder flags: notified24h=${visit.notified24h}, notified6h=${visit.notified6h}`);
+        console.log(`   📧 Message ID: ${result.messageId || 'N/A'}`);
+        return { success: true, messageId: result.messageId };
+      } else {
+        console.error(`❌ Failed to send instant email reminder to ${student.email}: Email service returned unsuccessful result`);
+        console.error(`   Result:`, result);
+        return { success: false, error: 'Email service returned unsuccessful result' };
+      }
     } catch (error) {
       console.error(`❌ Failed to send instant email reminder to ${student.email}:`, error.message);
+      console.error('Full error:', error);
+      console.error('Error stack:', error.stack);
+      throw error; // Re-throw to ensure it's caught by the calling code
     }
   } catch (error) {
     console.error(`Error sending instant reminder for visit ${visitId}:`, error);
