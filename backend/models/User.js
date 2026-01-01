@@ -40,6 +40,11 @@ const userSchema = new mongoose.Schema({
   resetPasswordOTPExpires: {
     type: Date,
     default: null
+  },
+  headerName: {
+    type: String,
+    default: 'Spectrum Student Data',
+    trim: true
   }
 }, {
   timestamps: true

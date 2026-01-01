@@ -49,7 +49,8 @@ router.post('/login', async (req, res) => {
         id: user._id,
         username: user.username,
         email: user.email,
-        name: user.name
+        name: user.name,
+        headerName: user.headerName || 'Spectrum Student Data'
       }
     });
   } catch (error) {
@@ -80,7 +81,8 @@ router.get('/verify', async (req, res) => {
         id: user._id,
         username: user.username,
         email: user.email,
-        name: user.name
+        name: user.name,
+        headerName: user.headerName || 'Spectrum Student Data'
       }
     });
   } catch (error) {
@@ -238,6 +240,49 @@ router.post('/reset-password', async (req, res) => {
     res.json({ success: true, message: 'Password reset successfully' });
   } catch (error) {
     console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update header name
+router.post('/update-header-name', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const user = await User.findById(decoded.userId);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { headerName } = req.body;
+
+    if (!headerName || headerName.trim().length === 0) {
+      return res.status(400).json({ error: 'Header name is required' });
+    }
+
+    if (headerName.trim().length > 100) {
+      return res.status(400).json({ error: 'Header name must be 100 characters or less' });
+    }
+
+    // Update header name
+    user.headerName = headerName.trim();
+    await user.save();
+
+    res.json({ 
+      success: true, 
+      message: 'Header name updated successfully',
+      headerName: user.headerName
+    });
+  } catch (error) {
+    console.error('Update header name error:', error);
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
     res.status(500).json({ error: 'Internal server error' });
   }
 });
