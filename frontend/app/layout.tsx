@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import ConditionalNavbar from '@/components/layout/ConditionalNavbar'
 import { AuthProvider } from '@/contexts/AuthContext'
+import RouteProtection from '@/components/RouteProtection'
 
 export const metadata: Metadata = {
   title: 'Spectrum Student Data - JEE Dashboard',
@@ -22,7 +23,9 @@ export default function RootLayout({
         <AuthProvider>
           <ConditionalNavbar />
           <div className="min-h-screen">
-            {children}
+            <RouteProtection>
+              {children}
+            </RouteProtection>
           </div>
         </AuthProvider>
       </body>
