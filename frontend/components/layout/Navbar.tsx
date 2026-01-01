@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Users, FileText, BookOpen, Upload, GraduationCap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ProfileDropdown from '@/components/ProfileDropdown';
+import { useAuth } from '@/contexts/AuthContext';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -16,13 +17,17 @@ const navItems = [
 
 export default function Navbar() {
   const pathname = usePathname();
+  const { user } = useAuth();
+  
+  // Get header name from user, fallback to default
+  const headerName = user?.headerName || 'Spectrum Student Data';
 
   return (
     <nav className="border-b border-slate-200 bg-white/95 backdrop-blur-xl supports-[backdrop-filter]:bg-white/80 shadow-sm">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold gradient-text">Spectrum Student Data</h1>
+            <h1 className="text-xl font-bold gradient-text">{headerName}</h1>
           </div>
           <div className="flex items-center gap-1">
             {navItems.map((item) => {

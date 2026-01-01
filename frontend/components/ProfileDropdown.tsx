@@ -1,15 +1,17 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { LogOut, Settings, User, ChevronDown } from 'lucide-react';
+import { LogOut, Settings, User, ChevronDown, Type } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import ChangePasswordModal from '@/components/ChangePasswordModal';
+import ChangeHeaderModal from '@/components/ChangeHeaderModal';
 
 export default function ProfileDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showChangeHeader, setShowChangeHeader] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   let user = null;
@@ -86,6 +88,17 @@ export default function ProfileDropdown() {
             <div className="py-1">
               <button
                 onClick={() => {
+                  setShowChangeHeader(true);
+                  setIsOpen(false);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                <Type className="h-4 w-4" />
+                Change Header
+              </button>
+              
+              <button
+                onClick={() => {
                   setShowChangePassword(true);
                   setIsOpen(false);
                 }}
@@ -114,6 +127,13 @@ export default function ProfileDropdown() {
         <ChangePasswordModal
           open={showChangePassword}
           onOpenChange={setShowChangePassword}
+        />
+      )}
+      
+      {showChangeHeader && (
+        <ChangeHeaderModal
+          open={showChangeHeader}
+          onOpenChange={setShowChangeHeader}
         />
       )}
     </>

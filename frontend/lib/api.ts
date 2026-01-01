@@ -152,6 +152,12 @@ export const authApi = {
   forgotPassword: (email: string) => api.post('/auth/forgot-password', { email }),
   verifyOTP: (otp: string) => api.post('/auth/verify-otp', { otp }),
   resetPassword: (otp: string, newPassword: string) => api.post('/auth/reset-password', { otp, newPassword }),
+  updateHeaderName: (headerName: string) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    return api.post('/auth/update-header-name', { headerName }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+  },
 };
 
 // Add token to all requests

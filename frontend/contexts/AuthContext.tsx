@@ -9,6 +9,7 @@ interface User {
   username: string;
   email: string;
   name: string;
+  headerName?: string;
 }
 
 interface AuthContextType {
@@ -17,6 +18,7 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
+  checkAuth: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -40,7 +42,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const response = await authApi.verify();
       if (response.data.success) {
-        setUser(response.data.user);
+        setUser({
+          ...response.data.user,
+          headerName: response.data.user.headerName || 'Spectrum Student Data'
+        });
       } else {
         localStorage.removeItem('token');
       }
@@ -55,7 +60,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const response = await authApi.login(username, password);
     if (response.data.success) {
       localStorage.setItem('token', response.data.token);
-      setUser(response.data.user);
+      setUser({
+        ...response.data.user,
+        headerName: response.data.user.headerName || 'Spectrum Student Data'
+      });
       router.push('/dashboard');
     }
   };
@@ -73,7 +81,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         login,
         logout,
-        isAuthenticated: !!user
+        isAuthenticated: !!user,
+        checkAuth
       }}
     >
       {children}
