@@ -198,6 +198,7 @@ export const topicsApi = {
 // Student Topic Status API
 export const studentTopicStatusApi = {
   getByStudent: (studentId: string) => api.get(`/student-topic-status/student/${studentId}`),
+  getBulk: (studentIds: string[]) => api.post('/student-topic-status/students/bulk', { studentIds }),
   update: (studentId: string, data: { 
     subject: string; 
     topicName: string; 

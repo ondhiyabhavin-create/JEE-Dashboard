@@ -127,81 +127,96 @@ export default function BacklogPage() {
         }
       });
 
-      // Fetch topic status stats for ALL students (for stats calculation)
-      // This is done in batches to avoid overwhelming the server
+      // Fetch topic status stats for ALL students using bulk endpoint (much faster!)
       let withBacklogCount = 0;
-      const batchSize = 50;
       const studentsWithStats: any[] = [];
       
-      for (let i = 0; i < studentList.length; i += batchSize) {
-        const batch = studentList.slice(i, i + batchSize);
-        const batchResults = await Promise.all(
-          batch.map(async (student: any) => {
-            try {
-              const statusRes = await studentTopicStatusApi.getByStudent(student._id);
-              const statuses = Array.isArray(statusRes.data) ? statusRes.data : (statusRes.data?.data || []);
-              
-              // Check backlog for each subject
-              const subjectBacklog: { [key: string]: boolean } = {
-                Physics: false,
-                Chemistry: false,
-                Mathematics: false,
-              };
+      try {
+        // Get all student IDs
+        const studentIds = studentList.map((s: any) => s._id);
+        
+        // Fetch all statuses in one or two bulk requests (limit 200 per request)
+        const bulkSize = 200;
+        const allStatusesByStudent: { [key: string]: any[] } = {};
+        
+        for (let i = 0; i < studentIds.length; i += bulkSize) {
+          const batchIds = studentIds.slice(i, i + bulkSize);
+          try {
+            const bulkRes = await studentTopicStatusApi.getBulk(batchIds);
+            const bulkData = bulkRes.data?.data || {};
+            Object.assign(allStatusesByStudent, bulkData);
+          } catch (err) {
+            console.error('Failed to fetch bulk statuses for batch:', err);
+            // Continue with other batches even if one fails
+          }
+        }
+        
+        // Process each student with their statuses
+        studentList.forEach((student: any) => {
+          const statuses = allStatusesByStudent[student._id] || [];
+          
+          // Check backlog for each subject
+          const subjectBacklog: { [key: string]: boolean } = {
+            Physics: false,
+            Chemistry: false,
+            Mathematics: false,
+          };
 
-              // Group statuses by subject and check if all topics have both theory and solving completed
-              ['Physics', 'Chemistry', 'Mathematics'].forEach((subject) => {
-                const totalTopicsInSubject = topicsPerSubject[subject] || 0;
-                if (totalTopicsInSubject === 0) {
-                  subjectBacklog[subject] = false; // No topics, no backlog
-                  return;
-                }
-
-                const subjectStatuses = statuses.filter((s: any) => 
-                  s.subject === subject && (!s.subtopicName || s.subtopicName === '')
-                );
-                
-                // If no status records exist for this subject, assume backlog (hasn't started)
-                if (subjectStatuses.length === 0) {
-                  subjectBacklog[subject] = true; // No records = has backlog
-                  return;
-                }
-
-                // Check if all topics have both theory and solving completed
-                // Only count statuses that have both completed
-                const topicsWithBothCompleted = subjectStatuses.filter((s: any) => 
-                  s.theoryCompleted === true && s.solvingCompleted === true
-                ).length;
-
-                // Subject has backlog if not all topics have both completed
-                // If we have fewer completed topics than total topics, there's backlog
-                subjectBacklog[subject] = topicsWithBothCompleted < totalTopicsInSubject;
-              });
-
-              // Student has backlog if any subject has backlog
-              const hasBacklog = subjectBacklog.Physics || subjectBacklog.Chemistry || subjectBacklog.Mathematics;
-              if (hasBacklog) withBacklogCount++;
-
-              return {
-                ...student,
-                totalTopics: totalTopicsFromSyllabus,
-                physicsBacklog: subjectBacklog.Physics,
-                chemistryBacklog: subjectBacklog.Chemistry,
-                mathematicsBacklog: subjectBacklog.Mathematics,
-                hasBacklog,
-              };
-            } catch {
-              return { 
-                ...student, 
-                totalTopics: totalTopicsFromSyllabus,
-                physicsBacklog: true, // Assume backlog on error
-                chemistryBacklog: true,
-                mathematicsBacklog: true,
-                hasBacklog: true,
-              };
+          // Group statuses by subject and check if all topics have both theory and solving completed
+          ['Physics', 'Chemistry', 'Mathematics'].forEach((subject) => {
+            const totalTopicsInSubject = topicsPerSubject[subject] || 0;
+            if (totalTopicsInSubject === 0) {
+              subjectBacklog[subject] = false; // No topics, no backlog
+              return;
             }
-          })
-        );
-        studentsWithStats.push(...batchResults);
+
+            const subjectStatuses = statuses.filter((s: any) => 
+              s.subject === subject && (!s.subtopicName || s.subtopicName === '')
+            );
+            
+            // If no status records exist for this subject, assume backlog (hasn't started)
+            if (subjectStatuses.length === 0) {
+              subjectBacklog[subject] = true; // No records = has backlog
+              return;
+            }
+
+            // Check if all topics have both theory and solving completed
+            // Only count statuses that have both completed
+            const topicsWithBothCompleted = subjectStatuses.filter((s: any) => 
+              s.theoryCompleted === true && s.solvingCompleted === true
+            ).length;
+
+            // Subject has backlog if not all topics have both completed
+            // If we have fewer completed topics than total topics, there's backlog
+            subjectBacklog[subject] = topicsWithBothCompleted < totalTopicsInSubject;
+          });
+
+          // Student has backlog if any subject has backlog
+          const hasBacklog = subjectBacklog.Physics || subjectBacklog.Chemistry || subjectBacklog.Mathematics;
+          if (hasBacklog) withBacklogCount++;
+
+          studentsWithStats.push({
+            ...student,
+            totalTopics: totalTopicsFromSyllabus,
+            physicsBacklog: subjectBacklog.Physics,
+            chemistryBacklog: subjectBacklog.Chemistry,
+            mathematicsBacklog: subjectBacklog.Mathematics,
+            hasBacklog,
+          });
+        });
+      } catch (err) {
+        console.error('Failed to fetch bulk statuses:', err);
+        // Fallback: mark all students as having backlog on error
+        studentList.forEach((student: any) => {
+          studentsWithStats.push({
+            ...student,
+            totalTopics: totalTopicsFromSyllabus,
+            physicsBacklog: true,
+            chemistryBacklog: true,
+            mathematicsBacklog: true,
+            hasBacklog: true,
+          });
+        });
       }
 
       setAllStudents(studentsWithStats);
