@@ -17,6 +17,43 @@ router.get('/student/:studentId', async (req, res) => {
   }
 });
 
+// Bulk get topic statuses for multiple students (for backlog page optimization)
+router.post('/students/bulk', async (req, res) => {
+  try {
+    const { studentIds } = req.body;
+
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+      // Ensure CORS headers are set on error responses
+      res.header('Access-Control-Allow-Origin', '*');
+      return res.status(400).json({ error: 'studentIds must be a non-empty array' });
+    }
+
+    // Limit to 200 students per request to avoid overwhelming the server
+    const limitedIds = studentIds.slice(0, 200);
+    
+    const statuses = await StudentTopicStatus.find({
+      studentId: { $in: limitedIds }
+    });
+
+    // Group by studentId for easier frontend processing
+    const groupedByStudent = {};
+    statuses.forEach((status) => {
+      const studentId = status.studentId.toString();
+      if (!groupedByStudent[studentId]) {
+        groupedByStudent[studentId] = [];
+      }
+      groupedByStudent[studentId].push(status);
+    });
+
+    res.json({ success: true, data: groupedByStudent });
+  } catch (error) {
+    console.error('Bulk get student topic statuses error:', error);
+    // Ensure CORS headers are set on error responses
+    res.header('Access-Control-Allow-Origin', '*');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Update or create student topic status (for both topic and subtopic level)
 router.post('/student/:studentId', async (req, res) => {
   try {

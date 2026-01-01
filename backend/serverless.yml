@@ -7,8 +7,8 @@ provider:
   runtime: nodejs18.x
   region: ${opt:region, 'us-east-1'}
   stage: ${opt:stage, 'dev'}
-  timeout: 30
-  memorySize: 512
+  timeout: 60
+  memorySize: 1024
   environment:
     MONGODB_URI: ${env:MONGODB_URI}
     JWT_SECRET: ${env:JWT_SECRET}
@@ -35,11 +35,27 @@ functions:
       - http:
           path: /{proxy+}
           method: ANY
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - Authorization
+              - X-Requested-With
+              - Accept
+              - Origin
+            allowCredentials: false
       - http:
           path: /
           method: ANY
-          cors: true
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - Authorization
+              - X-Requested-With
+              - Accept
+              - Origin
+            allowCredentials: false
   visitNotifications:
     handler: lambda.visitNotificationHandler
     timeout: 60
@@ -50,6 +66,20 @@ functions:
 
 plugins:
   - serverless-offline
+  - serverless-dotenv-plugin
+
+custom:
+  dotenv:
+    path: ./.env
+    basePath: ./
+    include:
+      - MONGODB_URI
+      - JWT_SECRET
+      - WHATSAPP_ENABLED
+      - WHATSAPP_PROVIDER
+      - TWILIO_ACCOUNT_SID
+      - TWILIO_AUTH_TOKEN
+      - WHATSAPP_FROM_NUMBER
 
 package:
   patterns:
