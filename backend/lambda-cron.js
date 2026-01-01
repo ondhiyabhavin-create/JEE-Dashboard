@@ -1,36 +1,79 @@
 const Visit = require('./models/Visit');
 const Student = require('./models/Student');
-const { sendVisitReminderWhatsApp } = require('./utils/whatsappService');
+const User = require('./models/User');
+const { sendVisitReminder } = require('./utils/emailService');
 const mongoose = require('mongoose');
+
+// Helper to get header name from user (most recently updated)
+const getHeaderName = async () => {
+  try {
+    const user = await User.findOne().select('headerName').sort({ updatedAt: -1 });
+    return user?.headerName || 'Spectrum Student Data';
+  } catch (error) {
+    console.error('Error fetching header name:', error);
+    return 'Spectrum Student Data';
+  }
+};
 
 // MongoDB connection handler for Lambda
 let cachedDb = null;
 
 const connectDB = async () => {
+  // Return cached connection if available
   if (cachedDb && mongoose.connection.readyState === 1) {
     return cachedDb;
   }
 
-  const mongoURI = process.env.MONGODB_URI;
+  // Hardcoded MongoDB URI as fallback
+  const HARDCODED_MONGODB_URI = 'mongodb+srv://studentsdata27_db_user:y3EkRkypFjeguZvM@student-dashboard.t0omzpb.mongodb.net/jee-dashboard?appName=Student-Dashboard';
+  
+  let mongoURI = process.env.MONGODB_URI || HARDCODED_MONGODB_URI;
   
   if (!mongoURI) {
-    throw new Error('MONGODB_URI environment variable is not set');
+    console.error('❌ MONGODB_URI environment variable is not set, using hardcoded fallback');
+    mongoURI = HARDCODED_MONGODB_URI;
   }
 
-  let connectionString = mongoURI;
-  if (mongoURI.includes('mongodb+srv://')) {
-    const dbMatch = mongoURI.match(/mongodb\+srv:\/\/[^@]+@[^\/]+\/([^?]+)/);
+  // Validate connection string format
+  const trimmedURI = mongoURI.trim();
+  if (!trimmedURI.startsWith('mongodb://') && !trimmedURI.startsWith('mongodb+srv://')) {
+    console.error('❌ Invalid MongoDB URI format, using hardcoded fallback');
+    console.error('URI length:', trimmedURI.length);
+    console.error('URI starts with:', trimmedURI.substring(0, 20));
+    // Use hardcoded URI as fallback
+    mongoURI = HARDCODED_MONGODB_URI;
+  }
+  
+  // Re-trim after potential fallback
+  const finalURI = mongoURI.trim();
+
+  // Ensure database name is in the connection string for Atlas
+  let connectionString = finalURI;
+  if (finalURI.includes('mongodb+srv://')) {
+    const dbMatch = finalURI.match(/mongodb\+srv:\/\/[^@]+@[^\/]+\/([^?]+)/);
     if (!dbMatch) {
-      connectionString = mongoURI.replace(/\?/, '/jee-dashboard?').replace(/\/$/, '/jee-dashboard');
+      connectionString = finalURI.replace(/\?/, '/jee-dashboard?').replace(/\/$/, '/jee-dashboard');
       if (!connectionString.includes('/jee-dashboard')) {
-        connectionString = mongoURI.endsWith('/') 
-          ? mongoURI + 'jee-dashboard' 
-          : mongoURI + '/jee-dashboard';
+        connectionString = finalURI.endsWith('/') 
+          ? finalURI + 'jee-dashboard' 
+          : finalURI + '/jee-dashboard';
+      }
+    }
+  } else if (finalURI.includes('mongodb://')) {
+    // Handle regular mongodb:// connection strings
+    const dbMatch = finalURI.match(/mongodb:\/\/[^\/]+\/([^?]+)/);
+    if (!dbMatch) {
+      connectionString = finalURI.replace(/\?/, '/jee-dashboard?').replace(/\/$/, '/jee-dashboard');
+      if (!connectionString.includes('/jee-dashboard')) {
+        connectionString = finalURI.endsWith('/') 
+          ? finalURI + 'jee-dashboard' 
+          : finalURI + '/jee-dashboard';
       }
     }
   }
 
   try {
+    // Close existing connection if any
     if (mongoose.connection.readyState !== 0) {
       await mongoose.connection.close();
     }
@@ -40,6 +83,8 @@ const connectDB = async () => {
       socketTimeoutMS: 45000,
       maxPoolSize: 5,
       minPoolSize: 1,
+      connectTimeoutMS: 10000,
+      bufferCommands: false, // Disable mongoose buffering - fail fast if not connected
     });
 
     cachedDb = mongoose.connection;
@@ -63,38 +108,57 @@ const check24HourReminders = async () => {
     await connectDB();
     
     const now = new Date();
-    const in24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-    const in24Hours15Min = new Date(in24Hours.getTime() + 15 * 60 * 1000);
-
+    
+    // Get header name once for all emails
+    const headerName = await getHeaderName();
+    
+    // Find all visits that haven't been notified for 24h and are in the future
     const visits = await Visit.find({
-      visitDate: { $gte: now, $lte: in24Hours15Min },
       notified24h: false,
-    }).populate('studentId');
+      visitDate: { $gte: now } // Only future visits
+    }).populate('studentId', 'name email');
+
+    console.log(`📋 Found ${visits.length} visits to check for 24h reminders`);
 
     for (const visit of visits) {
-      if (!visit.visitTime || !visit.studentId) continue;
+      if (!visit.visitTime || !visit.studentId) {
+        console.log(`⏭️  Skipping visit ${visit._id}: Missing visitTime or studentId`);
+        continue;
+      }
+
+      const student = visit.studentId;
+      if (!student || !student.email) {
+        console.log(`⏭️  Skipping visit ${visit._id}: Student email not found`);
+        continue;
+      }
 
       const visitDateTime = getVisitDateTime(visit.visitDate, visit.visitTime);
       const timeDiff = visitDateTime.getTime() - now.getTime();
       const hoursUntilVisit = timeDiff / (1000 * 60 * 60);
+      
+      // Debug logging
+      console.log(`🔍 [24h Check] Visit ${visit._id}: ${hoursUntilVisit.toFixed(2)}h until visit, student: ${student.name}, email: ${student.email}`);
 
+      // Only send 24h reminder if it's approximately 24 hours before (between 23.5 and 24.5 hours)
+      // Instant reminders are handled separately when visit is created/updated
       if (hoursUntilVisit >= 23.5 && hoursUntilVisit <= 24.5) {
-        const student = await Student.findById(visit.studentId._id || visit.studentId);
-        if (student && student.contactNumber) {
-          try {
-            await sendVisitReminderWhatsApp(
-              student.contactNumber,
-              student.name,
-              visit.visitDate,
-              visit.visitTime,
-              '24h'
-            );
-            visit.notified24h = true;
-            await visit.save();
-            console.log(`✅ 24h reminder sent to ${student.name}`);
-          } catch (error) {
-            console.error(`❌ Failed to send 24h reminder to ${student.name}:`, error);
-          }
+        try {
+          await sendVisitReminder(
+            student.email,
+            student.name,
+            visit.visitDate,
+            visit.visitTime,
+            '24h',
+            visit.assignment || '',
+            visit.remarks || '',
+            null,
+            headerName
+          );
+          visit.notified24h = true;
+          await visit.save();
+          console.log(`✅ 24h email reminder sent to ${student.email} for ${student.name}`);
+        } catch (error) {
+          console.error(`❌ Failed to send 24h email reminder to ${student.email}:`, error);
         }
       }
     }
@@ -108,38 +172,60 @@ const check6HourReminders = async () => {
     await connectDB();
     
     const now = new Date();
-    const in6Hours = new Date(now.getTime() + 6 * 60 * 60 * 1000);
-    const in6Hours15Min = new Date(in6Hours.getTime() + 15 * 60 * 1000);
-
+    
+    // Get header name once for all emails
+    const headerName = await getHeaderName();
+    
+    // Find all visits that haven't been notified for 6h and are in the future
     const visits = await Visit.find({
-      visitDate: { $gte: now, $lte: in6Hours15Min },
       notified6h: false,
-    }).populate('studentId');
+      visitDate: { $gte: now } // Only future visits
+    }).populate('studentId', 'name email');
+
+    console.log(`📋 Found ${visits.length} visits to check for 6h reminders`);
 
     for (const visit of visits) {
-      if (!visit.visitTime || !visit.studentId) continue;
+      if (!visit.visitTime || !visit.studentId) {
+        console.log(`⏭️  Skipping visit ${visit._id}: Missing visitTime or studentId`);
+        continue;
+      }
+
+      const student = visit.studentId;
+      if (!student || !student.email) {
+        console.log(`⏭️  Skipping visit ${visit._id}: Student email not found`);
+        continue;
+      }
 
       const visitDateTime = getVisitDateTime(visit.visitDate, visit.visitTime);
       const timeDiff = visitDateTime.getTime() - now.getTime();
       const hoursUntilVisit = timeDiff / (1000 * 60 * 60);
+      
+      // Debug logging
+      console.log(`🔍 [6h Check] Visit ${visit._id}: ${hoursUntilVisit.toFixed(2)}h until visit, student: ${student.name}, email: ${student.email}`);
 
       if (hoursUntilVisit >= 5.5 && hoursUntilVisit <= 6.5) {
         const student = await Student.findById(visit.studentId._id || visit.studentId);
-        if (student && student.contactNumber) {
+        if (student && student.email) {
           try {
-            await sendVisitReminderWhatsApp(
-              student.contactNumber,
+            await sendVisitReminder(
+              student.email,
               student.name,
               visit.visitDate,
               visit.visitTime,
-              '6h'
+              '6h',
+              visit.assignment || '',
+              visit.remarks || '',
+              null,
+              headerName
             );
             visit.notified6h = true;
             await visit.save();
-            console.log(`✅ 6h reminder sent to ${student.name}`);
+            console.log(`✅ 6h email reminder sent to ${student.email} for ${student.name}`);
           } catch (error) {
-            console.error(`❌ Failed to send 6h reminder to ${student.name}:`, error);
+            console.error(`❌ Failed to send 6h email reminder to ${student.email}:`, error);
           }
+        } else {
+          console.log(`Skipping visit ${visit._id}: Student email not found`);
         }
       }
     }
@@ -152,17 +238,6 @@ module.exports.visitNotificationHandler = async (event, context) => {
   context.callbackWaitsForEmptyEventLoop = false;
   
   try {
-    // Initialize WhatsApp service if configured
-    if (process.env.WHATSAPP_ENABLED === 'true' && process.env.WHATSAPP_FROM_NUMBER) {
-      const { initializeWhatsApp } = require('./utils/whatsappService');
-      initializeWhatsApp({
-        provider: process.env.WHATSAPP_PROVIDER || 'twilio',
-        accountSid: process.env.TWILIO_ACCOUNT_SID,
-        authToken: process.env.TWILIO_AUTH_TOKEN,
-        fromNumber: process.env.WHATSAPP_FROM_NUMBER,
-      });
-    }
-
     console.log('🔔 Checking visit reminders...');
     await check24HourReminders();
     await check6HourReminders();

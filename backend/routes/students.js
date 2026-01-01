@@ -24,7 +24,8 @@ router.get('/', async (req, res) => {
         $or: [
           { name: { $regex: search, $options: 'i' } },
           { rollNumber: { $regex: search, $options: 'i' } },
-          { batch: { $regex: search, $options: 'i' } }
+          { batch: { $regex: search, $options: 'i' } },
+          { email: { $regex: search, $options: 'i' } }
         ]
       });
     }

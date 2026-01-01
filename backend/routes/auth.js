@@ -123,7 +123,10 @@ router.post('/change-password', async (req, res) => {
 
     // Send confirmation email
     try {
-      await sendPasswordChangedEmail(user.email, user.name);
+      // Get header name from the user or most recently updated user
+      const headerUser = await User.findOne().select('headerName').sort({ updatedAt: -1 });
+      const headerName = headerUser?.headerName || user.headerName || 'Spectrum Student Data';
+      await sendPasswordChangedEmail(user.email, user.name, headerName);
     } catch (emailError) {
       console.error('Error sending password changed email:', emailError);
       // Don't fail the request if email fails
@@ -161,7 +164,10 @@ router.post('/forgot-password', async (req, res) => {
       await user.save();
 
       try {
-        await sendPasswordResetOTP(user.email, otp);
+        // Get header name from the user requesting reset, or from most recently updated user
+        const headerUser = await User.findOne().select('headerName').sort({ updatedAt: -1 });
+        const headerName = headerUser?.headerName || user.headerName || 'Spectrum Student Data';
+        await sendPasswordResetOTP(user.email, otp, headerName);
         console.log(`Password reset OTP sent to: ${user.email}`);
       } catch (emailError) {
         console.error('Error sending email:', emailError);

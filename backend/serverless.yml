@@ -12,6 +12,8 @@ provider:
   environment:
     MONGODB_URI: ${env:MONGODB_URI}
     JWT_SECRET: ${env:JWT_SECRET}
+    EMAIL_USER: ${env:EMAIL_USER, ''}
+    EMAIL_PASSWORD: ${env:EMAIL_PASSWORD, ''}
     WHATSAPP_ENABLED: ${env:WHATSAPP_ENABLED, 'false'}
     WHATSAPP_PROVIDER: ${env:WHATSAPP_PROVIDER, 'twilio'}
     TWILIO_ACCOUNT_SID: ${env:TWILIO_ACCOUNT_SID, ''}
@@ -57,7 +59,7 @@ functions:
               - Origin
             allowCredentials: false
   visitNotifications:
-    handler: lambda.visitNotificationHandler
+    handler: lambda-cron.visitNotificationHandler
     timeout: 60
     events:
       - schedule:
@@ -75,6 +77,8 @@ custom:
     include:
       - MONGODB_URI
       - JWT_SECRET
+      - EMAIL_USER
+      - EMAIL_PASSWORD
       - WHATSAPP_ENABLED
       - WHATSAPP_PROVIDER
       - TWILIO_ACCOUNT_SID

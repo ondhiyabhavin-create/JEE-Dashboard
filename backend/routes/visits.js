@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Visit = require('../models/Visit');
+const { check24HourReminders, check6HourReminders, sendInstantReminder } = require('../services/visitNotificationService');
 
 // Get all visits for a student
 router.get('/student/:studentId', async (req, res) => {
@@ -32,6 +33,19 @@ router.post('/', async (req, res) => {
   try {
     const visit = new Visit(req.body);
     await visit.save();
+    
+    // Send instant reminder immediately (runs in background, doesn't block the response)
+    setImmediate(async () => {
+      try {
+        await sendInstantReminder(visit._id);
+        // Also check for scheduled reminders (24h and 6h) in case instant wasn't sent
+        await check24HourReminders();
+        await check6HourReminders();
+      } catch (error) {
+        console.error('Error sending instant reminder after visit creation:', error);
+      }
+    });
+    
     res.status(201).json(visit);
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -49,6 +63,27 @@ router.put('/:id', async (req, res) => {
     if (!visit) {
       return res.status(404).json({ error: 'Visit not found' });
     }
+    
+    // If visit date/time was updated, reset notification flags and send instant reminder
+    if (req.body.visitDate || req.body.visitTime) {
+      // Reset notification flags if date/time changed
+      visit.notified24h = false;
+      visit.notified6h = false;
+      await visit.save();
+      
+      // Send instant reminder and check for scheduled reminders
+      setImmediate(async () => {
+        try {
+          await sendInstantReminder(visit._id);
+          // Also check for scheduled reminders (24h and 6h) in case instant wasn't sent
+          await check24HourReminders();
+          await check6HourReminders();
+        } catch (error) {
+          console.error('Error sending instant reminder after visit update:', error);
+        }
+      });
+    }
+    
     res.json(visit);
   } catch (error) {
     res.status(400).json({ error: error.message });
