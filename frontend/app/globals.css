@@ -1,0 +1,168 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Modern Premium Light Color Palette - High Readability */
+    --background: 0 0% 100%;
+    --foreground: 222.2 47.4% 11.2%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 47.4% 11.2%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 47.4% 11.2%;
+    
+    /* Primary - Modern Blue/Purple */
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
+    
+    /* Secondary - Light Gray */
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    
+    /* Muted - Soft Gray */
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    
+    /* Accent - Vibrant Blue */
+    --accent: 217 91% 60%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    
+    /* Destructive - Modern Red */
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+    
+    /* Border & Input */
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 262 83% 58%;
+    
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 262 83% 58%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50 text-foreground;
+    background-attachment: fixed;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    min-height: 100vh;
+    color: hsl(var(--foreground));
+  }
+  
+  /* Modern scrollbar */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-slate-100;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 rounded-full;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-400;
+  }
+}
+
+@layer utilities {
+  /* Premium card shadow */
+  .card-shadow {
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  }
+  
+  .card-shadow-lg {
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  }
+  
+  /* Premium gradient text */
+  .gradient-text {
+    @apply bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent;
+  }
+  
+  /* Premium hover effect */
+  .hover-lift {
+    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-xl;
+  }
+  
+  /* Readable text */
+  .text-readable {
+    @apply text-slate-700;
+  }
+  
+  .text-readable-muted {
+    @apply text-slate-600;
+  }
+  
+  /* Time input styling - override browser defaults */
+  input[type="time"] {
+    color-scheme: light;
+  }
+  
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: brightness(0) saturate(100%) invert(60%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(90%) contrast(90%);
+    cursor: pointer;
+    opacity: 1;
+    width: 20px;
+    height: 20px;
+    transition: filter 0.2s ease;
+  }
+  
+  input[type="time"]::-webkit-calendar-picker-indicator:hover {
+    filter: brightness(0) saturate(100%) invert(45%) sepia(100%) saturate(100%) hue-rotate(250deg) brightness(100%) contrast(100%);
+  }
+  
+  input[type="time"]:focus::-webkit-calendar-picker-indicator {
+    filter: brightness(0) saturate(100%) invert(45%) sepia(100%) saturate(100%) hue-rotate(250deg) brightness(100%) contrast(100%);
+  }
+  
+  /* Firefox time input styling */
+  input[type="time"]::-moz-calendar-picker-indicator {
+    filter: brightness(0) saturate(100%) invert(60%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(90%) contrast(90%);
+    cursor: pointer;
+    opacity: 1;
+    width: 20px;
+    height: 20px;
+    transition: filter 0.2s ease;
+  }
+  
+  input[type="time"]::-moz-calendar-picker-indicator:hover {
+    filter: brightness(0) saturate(100%) invert(45%) sepia(100%) saturate(100%) hue-rotate(250deg) brightness(100%) contrast(100%);
+  }
+}
