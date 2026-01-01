@@ -11,6 +11,7 @@ export default function VisitsTab({ studentId }: VisitsTabProps) {
   const [visits, setVisits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [deletingVisitId, setDeletingVisitId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     visitDate: new Date().toISOString().split('T')[0],
@@ -58,10 +59,13 @@ export default function VisitsTab({ studentId }: VisitsTabProps) {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this visit?')) return;
     try {
+      setDeletingVisitId(id);
       await visitsApi.delete(id);
-      fetchVisits();
+      await fetchVisits();
+      setDeletingVisitId(null);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to delete visit');
+      setDeletingVisitId(null);
     }
   };
 
@@ -127,7 +131,14 @@ export default function VisitsTab({ studentId }: VisitsTabProps) {
       ) : (
         <div>
           {visits.map((visit) => (
-            <div key={visit._id} className="card">
+            <div 
+              key={visit._id} 
+              className="card"
+              style={{ 
+                opacity: deletingVisitId === visit._id ? 0.6 : 1,
+                pointerEvents: deletingVisitId === visit._id ? 'none' : 'auto'
+              }}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                 <div>
                   <h3>{new Date(visit.visitDate).toLocaleDateString()}</h3>
@@ -148,8 +159,9 @@ export default function VisitsTab({ studentId }: VisitsTabProps) {
                   className="btn btn-secondary"
                   style={{ padding: '6px 12px', fontSize: '12px' }}
                   onClick={() => handleDelete(visit._id)}
+                  disabled={deletingVisitId === visit._id}
                 >
-                  Delete
+                  {deletingVisitId === visit._id ? 'Deleting...' : 'Delete'}
                 </button>
               </div>
             </div>

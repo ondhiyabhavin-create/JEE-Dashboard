@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Calendar, FileText, Trash2, X, Edit2, Save } from 'lucide-react';
+import { Plus, Calendar, FileText, Trash2, X, Edit2, Save, Loader2 } from 'lucide-react';
 import { visitsApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,7 @@ export default function VisitsTabPremium({ studentId, student }: VisitsTabPremiu
   });
   const [error, setError] = useState<string>('');
   const [deleteVisitId, setDeleteVisitId] = useState<string | null>(null);
+  const [deletingVisitId, setDeletingVisitId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showEmailWarning, setShowEmailWarning] = useState(false);
   const [pendingSubmit, setPendingSubmit] = useState<(() => void) | null>(null);
@@ -125,11 +126,15 @@ export default function VisitsTabPremium({ studentId, student }: VisitsTabPremiu
 
   const handleDelete = async (id: string) => {
     try {
+      setDeletingVisitId(id);
+      setDeleteVisitId(null); // Close the dialog
       await visitsApi.delete(id);
-      setDeleteVisitId(null);
-      fetchVisits();
+      await fetchVisits();
+      setDeletingVisitId(null);
     } catch (err: any) {
       console.error('Failed to delete visit:', err);
+      setDeletingVisitId(null);
+      setError('Failed to delete visit. Please try again.');
     }
   };
 
@@ -279,8 +284,14 @@ export default function VisitsTabPremium({ studentId, student }: VisitsTabPremiu
               transition={{ delay: index * 0.05 }}
             >
               <Card
-                className="hover:shadow-md transition-all duration-200 cursor-pointer"
-                onClick={() => setSelectedVisit(visit)}
+                className={`hover:shadow-md transition-all duration-200 cursor-pointer ${
+                  deletingVisitId === visit._id ? 'opacity-50 pointer-events-none' : ''
+                }`}
+                onClick={() => {
+                  if (deletingVisitId !== visit._id) {
+                    setSelectedVisit(visit);
+                  }
+                }}
               >
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
@@ -306,10 +317,13 @@ export default function VisitsTabPremium({ studentId, student }: VisitsTabPremiu
                         size="icon"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleEdit(visit);
+                          if (deletingVisitId !== visit._id) {
+                            handleEdit(visit);
+                          }
                         }}
                         className="text-primary hover:text-primary"
                         title="Edit visit details"
+                        disabled={deletingVisitId === visit._id}
                       >
                         <Edit2 className="h-4 w-4" />
                       </Button>
@@ -318,12 +332,19 @@ export default function VisitsTabPremium({ studentId, student }: VisitsTabPremiu
                         size="icon"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setDeleteVisitId(visit._id);
+                          if (deletingVisitId !== visit._id) {
+                            setDeleteVisitId(visit._id);
+                          }
                         }}
                         className="text-destructive hover:text-destructive"
-                        title="Delete visit"
+                        title={deletingVisitId === visit._id ? "Deleting..." : "Delete visit"}
+                        disabled={deletingVisitId === visit._id}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        {deletingVisitId === visit._id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
                       </Button>
                     </div>
                   </div>
