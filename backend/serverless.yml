@@ -1,0 +1,65 @@
+service: jee-dashboard-backend
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ${opt:region, 'us-east-1'}
+  stage: ${opt:stage, 'dev'}
+  timeout: 30
+  memorySize: 512
+  environment:
+    MONGODB_URI: ${env:MONGODB_URI}
+    JWT_SECRET: ${env:JWT_SECRET}
+    WHATSAPP_ENABLED: ${env:WHATSAPP_ENABLED, 'false'}
+    WHATSAPP_PROVIDER: ${env:WHATSAPP_PROVIDER, 'twilio'}
+    TWILIO_ACCOUNT_SID: ${env:TWILIO_ACCOUNT_SID, ''}
+    TWILIO_AUTH_TOKEN: ${env:TWILIO_AUTH_TOKEN, ''}
+    WHATSAPP_FROM_NUMBER: ${env:WHATSAPP_FROM_NUMBER, ''}
+    NODE_ENV: production
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource: '*'
+
+functions:
+  api:
+    handler: lambda.handler
+    events:
+      - http:
+          path: /{proxy+}
+          method: ANY
+          cors: true
+      - http:
+          path: /
+          method: ANY
+          cors: true
+  visitNotifications:
+    handler: lambda.visitNotificationHandler
+    timeout: 60
+    events:
+      - schedule:
+          rate: rate(15 minutes)
+          enabled: true
+
+plugins:
+  - serverless-offline
+
+package:
+  patterns:
+    - '!node_modules/**'
+    - 'node_modules/**'
+    - '!uploads/**'
+    - '!scripts/**'
+    - '!test-mongodb.js'
+    - '!.env*'
+    - '!*.md'
+    - '!railway.json'
+    - '!vercel.json'
+

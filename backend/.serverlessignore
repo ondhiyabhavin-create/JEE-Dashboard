@@ -1,0 +1,14 @@
+node_modules/.cache/**
+.git/**
+.gitignore
+.env
+.env.*
+*.md
+README.md
+scripts/**
+test-*.js
+uploads/**
+railway.json
+vercel.json
+.serverless/**
+
