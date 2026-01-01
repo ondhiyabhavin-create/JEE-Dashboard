@@ -1,7 +1,10 @@
 import axios from 'axios';
 
-// Force API URL to port 5001 (backend port)
-const API_URL = 'http://localhost:5001/api';
+// API URL - Use environment variable in production, localhost in development
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 
+  (typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+    ? 'http://localhost:5001/api' 
+    : 'https://qr9vevhu9j.execute-api.us-east-1.amazonaws.com/dev/api');
 
 // Log the API URL being used (only in browser)
 if (typeof window !== 'undefined') {
