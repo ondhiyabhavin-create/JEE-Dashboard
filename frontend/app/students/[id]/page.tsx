@@ -178,7 +178,7 @@ export default function StudentDetailPage() {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
               >
-                <VisitsTabPremium studentId={studentId} />
+                <VisitsTabPremium studentId={studentId} student={student} />
               </motion.div>
             </TabsContent>
 

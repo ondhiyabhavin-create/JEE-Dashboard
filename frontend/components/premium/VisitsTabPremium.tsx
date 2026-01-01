@@ -14,9 +14,10 @@ import { formatDate } from '@/lib/utils';
 
 interface VisitsTabPremiumProps {
   studentId: string;
+  student?: any; // Student object with email field
 }
 
-export default function VisitsTabPremium({ studentId }: VisitsTabPremiumProps) {
+export default function VisitsTabPremium({ studentId, student }: VisitsTabPremiumProps) {
   const [visits, setVisits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -29,6 +30,8 @@ export default function VisitsTabPremium({ studentId }: VisitsTabPremiumProps) {
   const [error, setError] = useState<string>('');
   const [deleteVisitId, setDeleteVisitId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showEmailWarning, setShowEmailWarning] = useState(false);
+  const [pendingSubmit, setPendingSubmit] = useState<(() => void) | null>(null);
   const [formData, setFormData] = useState({
     visitDate: new Date().toISOString().split('T')[0],
     visitTime: '10:00',
@@ -72,6 +75,22 @@ export default function VisitsTabPremium({ studentId }: VisitsTabPremiumProps) {
       return;
     }
 
+    // Check if student has email
+    const studentEmail = student?.email;
+    if (!studentEmail || studentEmail.trim() === '') {
+      // Show warning dialog
+      setPendingSubmit(() => async () => {
+        await createVisit();
+      });
+      setShowEmailWarning(true);
+      return;
+    }
+
+    // Student has email, proceed with creating visit
+    await createVisit();
+  };
+
+  const createVisit = async () => {
     try {
       await visitsApi.create({ studentId, ...formData });
       setShowForm(false);
@@ -87,6 +106,21 @@ export default function VisitsTabPremium({ studentId }: VisitsTabPremiumProps) {
       console.error('Failed to create visit:', err);
       setError(err.response?.data?.error || 'Failed to create visit. Please try again.');
     }
+  };
+
+  const handleProceedWithoutEmail = async () => {
+    setShowEmailWarning(false);
+    if (pendingSubmit) {
+      await pendingSubmit();
+      setPendingSubmit(null);
+    }
+  };
+
+  const handleCancelAndAddEmail = () => {
+    setShowEmailWarning(false);
+    setPendingSubmit(null);
+    // Optionally, you could scroll to email field or show a message
+    // For now, just close the dialog
   };
 
   const handleDelete = async (id: string) => {
@@ -113,6 +147,10 @@ export default function VisitsTabPremium({ studentId }: VisitsTabPremiumProps) {
     setSaving(true);
     setError('');
     try {
+      // Check if date/time is being updated and student has email
+      const isDateOrTimeUpdated = false; // For now, we only allow editing assignment/remarks
+      // If in future we allow date/time editing, we should check email here too
+      
       await visitsApi.update(editingVisit._id, {
         assignment: editFormData.assignment,
         remarks: editFormData.remarks,
@@ -445,6 +483,23 @@ export default function VisitsTabPremium({ studentId }: VisitsTabPremiumProps) {
         confirmText="Delete"
         cancelText="Cancel"
         variant="destructive"
+      />
+
+      {/* Email Warning Dialog */}
+      <ConfirmDialog
+        open={showEmailWarning}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowEmailWarning(false);
+            setPendingSubmit(null);
+          }
+        }}
+        onConfirm={handleProceedWithoutEmail}
+        onCancel={handleCancelAndAddEmail}
+        title="Student Email Not Found"
+        message="This student doesn't have an email address. If you schedule the visit now, the student won't receive any reminder notifications (instant, 24-hour, or 6-hour reminders). Would you like to add the email first, or proceed without email (no notifications will be sent)?"
+        confirmText="Proceed Without Email"
+        cancelText="Cancel and Add Email"
       />
     </div>
   );
