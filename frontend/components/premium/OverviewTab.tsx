@@ -53,6 +53,7 @@ export default function OverviewTab({ student, onUpdate }: OverviewTabProps) {
       setFormData(getInitialFormData(student));
       setRemarks(getInitialRemarks(student));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [student?._id]);
   const [newRemark, setNewRemark] = useState({ remark: '', date: new Date().toISOString().split('T')[0] });
   const [editingRemarkId, setEditingRemarkId] = useState<string | null>(null);

@@ -46,6 +46,7 @@ export default function TopicManagementModal({ open, onOpenChange }: TopicManage
         setExpandedSubjects(new Set(allSubjectIds));
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const fetchSyllabus = async () => {
@@ -82,7 +83,7 @@ export default function TopicManagementModal({ open, onOpenChange }: TopicManage
       // Expand the newly created subject
       const newSubjectItem = updated.find((s: SyllabusItem) => s.subject === newSubject.subject);
       if (newSubjectItem) {
-        setExpandedSubjects(prev => new Set([...prev, newSubjectItem._id]));
+        setExpandedSubjects(prev => new Set([...Array.from(prev), newSubjectItem._id]));
       }
     } catch (err: any) {
       console.error('Failed to create subject:', err);
@@ -194,7 +195,7 @@ export default function TopicManagementModal({ open, onOpenChange }: TopicManage
                 <div>
                   <h2 className="text-2xl font-bold">Syllabus Management</h2>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Design and manage your syllabus structure. This will be used for all students' backlog tracking.
+                    Design and manage your syllabus structure. This will be used for all students&apos; backlog tracking.
                   </p>
                 </div>
                 <Button

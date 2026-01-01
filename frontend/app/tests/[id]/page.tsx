@@ -39,6 +39,7 @@ export default function TestDetailPage() {
 
   useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [testId]);
 
   useEffect(() => {
@@ -266,7 +267,7 @@ export default function TestDetailPage() {
             <CardContent>
               {search && (
                 <p className="text-sm text-muted-foreground mb-4">
-                  Found {filteredResults.length} result(s) matching "{search}"
+                  Found {filteredResults.length} result(s) matching &quot;{search}&quot;
                 </p>
               )}
               <div className="overflow-x-auto">
@@ -345,7 +346,7 @@ export default function TestDetailPage() {
 
               {search && filteredResults.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
-                  No results found matching "{search}"
+                  No results found matching &quot;{search}&quot;
                 </div>
               )}
 

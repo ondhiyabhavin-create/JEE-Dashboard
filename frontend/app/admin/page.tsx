@@ -57,7 +57,7 @@ export default function AdminPage() {
     try {
       setUploading(true);
       setUploadResult(null);
-      const response = await testsApi.uploadExcel(selectedTest, file);
+      const response = await testsApi.uploadExcelWithTestId(selectedTest, file);
       setUploadResult(response.data);
       setError('');
     } catch (err: any) {

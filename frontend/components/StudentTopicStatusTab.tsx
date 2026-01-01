@@ -21,11 +21,8 @@ interface Topic {
 
 interface StudentTopicStatus {
   _id: string;
-  topicId: {
-    _id: string;
-    name: string;
-    subject: string;
-  };
+  subject: string;
+  topicName: string;
   subtopicName: string;
   status: 'Good' | 'Medium' | 'Bad' | 'Conceptual Backlog' | 'Solving Backlog' | null;
   negativeCount: number;
@@ -60,6 +57,7 @@ export default function StudentTopicStatusTab({ studentId }: StudentTopicStatusT
 
   useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId]);
 
   const fetchData = async () => {
@@ -78,10 +76,11 @@ export default function StudentTopicStatusTab({ studentId }: StudentTopicStatusT
     }
   };
 
-  const handleStatusChange = async (topicId: string, subtopicName: string, status: string | null) => {
+  const handleStatusChange = async (subject: string, topicName: string, subtopicName: string, status: string | null) => {
     try {
       await studentTopicStatusApi.update(studentId, {
-        topicId,
+        subject,
+        topicName,
         subtopicName,
         status: status || undefined,
       });
@@ -92,9 +91,9 @@ export default function StudentTopicStatusTab({ studentId }: StudentTopicStatusT
     }
   };
 
-  const getStatusForSubtopic = (topicId: string, subtopicName: string): StudentTopicStatus | null => {
+  const getStatusForSubtopic = (subject: string, topicName: string, subtopicName: string): StudentTopicStatus | null => {
     return statuses.find(
-      s => s.topicId._id === topicId && s.subtopicName === subtopicName
+      s => s.subject === subject && s.topicName === topicName && s.subtopicName === subtopicName
     ) || null;
   };
 
@@ -132,7 +131,7 @@ export default function StudentTopicStatusTab({ studentId }: StudentTopicStatusT
                     ) : (
                       <div className="space-y-2">
                         {topic.subtopics.map((subtopic) => {
-                          const status = getStatusForSubtopic(topic._id, subtopic.name);
+                          const status = getStatusForSubtopic(topic.subject, topic.name, subtopic.name);
                           const currentStatus = status?.status || null;
                           const negativeCount = status?.negativeCount || 0;
 
@@ -159,7 +158,8 @@ export default function StudentTopicStatusTab({ studentId }: StudentTopicStatusT
                                     <button
                                       key={option}
                                       onClick={() => handleStatusChange(
-                                        topic._id,
+                                        topic.subject,
+                                        topic.name,
                                         subtopic.name,
                                         isSelected ? null : option
                                       )}

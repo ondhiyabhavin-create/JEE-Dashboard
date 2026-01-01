@@ -20,6 +20,7 @@ export default function VisitsTab({ studentId }: VisitsTabProps) {
 
   useEffect(() => {
     fetchVisits();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId]);
 
   const fetchVisits = async () => {

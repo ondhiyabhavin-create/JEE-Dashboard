@@ -68,6 +68,7 @@ export default function StudentsPage() {
 
   useEffect(() => {
     fetchStudents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, search, batchFilter, sourceFilter]);
 
   const fetchStudents = async () => {
@@ -104,7 +105,7 @@ export default function StudentsPage() {
       }
       
       setAllStudents(filteredAllStudents);
-      const uniqueBatches = [...new Set(allStudentsList.map((s: Student) => s.batch))];
+      const uniqueBatches = Array.from(new Set(allStudentsList.map((s: Student) => s.batch))) as string[];
       setBatches(uniqueBatches);
     } catch (err: any) {
       console.error('Failed to fetch students:', err);

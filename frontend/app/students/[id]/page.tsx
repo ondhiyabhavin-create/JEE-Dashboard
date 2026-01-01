@@ -28,10 +28,11 @@ export default function StudentDetailPage() {
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'user');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const { showSuccess, showError } = useToast();
+  const { success: showSuccess, error: showError } = useToast();
 
   useEffect(() => {
     fetchStudent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId]);
 
   const fetchStudent = async () => {

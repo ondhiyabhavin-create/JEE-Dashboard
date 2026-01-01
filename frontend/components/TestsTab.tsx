@@ -16,6 +16,7 @@ export default function TestsTab({ studentId }: TestsTabProps) {
 
   useEffect(() => {
     fetchResults();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId]);
 
   const fetchResults = async () => {

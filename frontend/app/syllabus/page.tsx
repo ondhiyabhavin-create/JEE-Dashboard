@@ -90,7 +90,7 @@ export default function SyllabusPage() {
       
       // Expand the newly created subject using the ID from response
       if (createdSubject && createdSubject._id) {
-        setExpandedSubjects(prev => new Set([...prev, createdSubject._id]));
+        setExpandedSubjects(prev => new Set([...Array.from(prev), createdSubject._id]));
       }
       
       success(`${subjectName} subject created successfully`);
@@ -247,7 +247,7 @@ export default function SyllabusPage() {
           <div>
             <h1 className="text-4xl font-bold text-foreground mb-2">Syllabus Management</h1>
             <p className="text-muted-foreground">
-              Design and manage your syllabus structure. This will be used for all students' backlog tracking.
+              Design and manage your syllabus structure. This will be used for all students&apos; backlog tracking.
             </p>
           </div>
           {syllabus.length > 0 && (

@@ -16,6 +16,7 @@ export default function BacklogTab({ studentId }: BacklogTabProps) {
 
   useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId]);
 
   const fetchData = async () => {
