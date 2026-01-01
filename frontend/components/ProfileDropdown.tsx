@@ -2,25 +2,28 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { LogOut, Settings, User, ChevronDown } from 'lucide-react';
+import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import ChangePasswordModal from '@/components/ChangePasswordModal';
 
 export default function ProfileDropdown() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  
   let user = null;
   let logout = () => {};
+  let isAuthenticated = false;
   
   try {
     const auth = useAuth();
     user = auth.user;
     logout = auth.logout;
+    isAuthenticated = auth.isAuthenticated;
   } catch {
-    // Not authenticated
+    // Not authenticated - will show login button
   }
-
-  const [isOpen, setIsOpen] = useState(false);
-  const [showChangePassword, setShowChangePassword] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -38,7 +41,18 @@ export default function ProfileDropdown() {
     };
   }, [isOpen]);
 
-  if (!user) return null;
+  // Show login button if not authenticated
+  if (!isAuthenticated || !user) {
+    return (
+      <Link
+        href="/login"
+        className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:shadow-md transition-all"
+      >
+        <User className="h-4 w-4" />
+        Login
+      </Link>
+    );
+  }
 
   const getInitials = (name: string) => {
     return name

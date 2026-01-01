@@ -150,22 +150,30 @@ export default function BacklogPage() {
 
               // Group statuses by subject and check if all topics have both theory and solving completed
               ['Physics', 'Chemistry', 'Mathematics'].forEach((subject) => {
-                const subjectStatuses = statuses.filter((s: any) => 
-                  s.subject === subject && (!s.subtopicName || s.subtopicName === '')
-                );
-                
                 const totalTopicsInSubject = topicsPerSubject[subject] || 0;
                 if (totalTopicsInSubject === 0) {
                   subjectBacklog[subject] = false; // No topics, no backlog
                   return;
                 }
 
+                const subjectStatuses = statuses.filter((s: any) => 
+                  s.subject === subject && (!s.subtopicName || s.subtopicName === '')
+                );
+                
+                // If no status records exist for this subject, assume backlog (hasn't started)
+                if (subjectStatuses.length === 0) {
+                  subjectBacklog[subject] = true; // No records = has backlog
+                  return;
+                }
+
                 // Check if all topics have both theory and solving completed
+                // Only count statuses that have both completed
                 const topicsWithBothCompleted = subjectStatuses.filter((s: any) => 
-                  s.theoryCompleted && s.solvingCompleted
+                  s.theoryCompleted === true && s.solvingCompleted === true
                 ).length;
 
                 // Subject has backlog if not all topics have both completed
+                // If we have fewer completed topics than total topics, there's backlog
                 subjectBacklog[subject] = topicsWithBothCompleted < totalTopicsInSubject;
               });
 
