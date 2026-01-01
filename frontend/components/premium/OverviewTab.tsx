@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { User, Phone, MapPin, Briefcase, FileText, Edit2, Save, X, Plus, Trash2 } from 'lucide-react';
+import { User, Phone, MapPin, Briefcase, FileText, Edit2, Save, X, Plus, Trash2, Mail } from 'lucide-react';
 import { studentsApi } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -29,6 +29,7 @@ export default function OverviewTab({ student, onUpdate }: OverviewTabProps) {
     batch: studentData?.batch || '',
     parentOccupation: studentData?.parentOccupation || '',
     contactNumber: studentData?.contactNumber || '',
+    email: studentData?.email || '',
     rollNumber: studentData?.rollNumber || '',
     generalRemark: studentData?.generalRemark || ''
   });
@@ -87,6 +88,7 @@ export default function OverviewTab({ student, onUpdate }: OverviewTabProps) {
       batch: student.batch || '',
       parentOccupation: student.parentOccupation || '',
       contactNumber: student.contactNumber || '',
+      email: student.email || '',
       rollNumber: student.rollNumber || '',
       generalRemark: student.generalRemark || ''
     });
@@ -264,6 +266,22 @@ export default function OverviewTab({ student, onUpdate }: OverviewTabProps) {
                 <div className="flex items-center gap-2">
                   <Phone className="h-4 w-4 text-muted-foreground" />
                   <p className="font-medium">{formData.contactNumber || 'Not set'}</p>
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground mb-1 block">Email</label>
+              {isEditing ? (
+                <Input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="Enter email address"
+                />
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <p className="font-medium">{formData.email || 'Not set'}</p>
                 </div>
               )}
             </div>

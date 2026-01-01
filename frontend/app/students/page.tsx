@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Filter, Users, UserPlus, Grid3x3, List, Trash2, MoreVertical } from 'lucide-react';
+import { Search, Filter, Users, UserPlus, Grid3x3, List, Trash2, MoreVertical, Mail } from 'lucide-react';
 import Link from 'next/link';
 import { studentsApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +20,7 @@ interface Student {
   rollNumber: string;
   name: string;
   batch: string;
+  email?: string;
   sourceType?: 'manual' | 'excel';
 }
 
@@ -402,6 +403,12 @@ export default function StudentsPage() {
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground mb-2">Roll: {student.rollNumber}</p>
+                        {student.email && (
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground mb-2">
+                            <Mail className="h-3 w-3" />
+                            <span className="truncate">{student.email}</span>
+                          </div>
+                        )}
                         <Badge variant="secondary">
                           {student.batch}
                         </Badge>
