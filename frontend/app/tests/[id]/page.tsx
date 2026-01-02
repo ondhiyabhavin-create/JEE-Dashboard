@@ -50,12 +50,31 @@ export default function TestDetailPage() {
   }>({ Physics: [], Chemistry: [], Mathematics: [] });
 
   useEffect(() => {
-    fetchData();
-    fetchSubtopics();
+    const abortController = new AbortController();
+    
+    const loadData = async () => {
+      try {
+        await Promise.all([
+          fetchData(abortController.signal),
+          fetchSubtopics(abortController.signal)
+        ]);
+      } catch (error: any) {
+        if (error.name !== 'AbortError') {
+          console.error('Failed to load data:', error);
+          showError('Failed to load test data. Please try again.');
+        }
+      }
+    };
+    
+    loadData();
+    
+    return () => {
+      abortController.abort(); // Cancel requests when component unmounts or testId changes
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [testId]);
 
-  const fetchSubtopics = async () => {
+  const fetchSubtopics = async (signal?: AbortSignal) => {
     try {
       const response = await syllabusApi.getGroupedSubtopics();
       console.log('🔍 Full API response:', response);
@@ -102,42 +121,82 @@ export default function TestDetailPage() {
     }
   }, [selectedResult]);
 
-  const fetchData = async () => {
+  const fetchData = async (signal?: AbortSignal, pageNum: number = 1) => {
     try {
       setLoading(true);
-      // Fetch all results for search functionality
+      // Fetch test and page of results
       const [testRes, resultsRes] = await Promise.all([
         testsApi.getById(testId),
-        resultsApi.getByTest(testId, 1, 10000), // Get all results for search
+        resultsApi.getByTest(testId, pageNum, 50), // Fetch specific page
       ]);
-      setTest(testRes.data);
-      setAllResults(resultsRes.data.results);
       
-      // Apply pagination to non-filtered results
-      const startIndex = (page - 1) * 50;
-      const endIndex = startIndex + 50;
-      setResults(resultsRes.data.results.slice(startIndex, endIndex));
-      setPagination({
-        page,
-        limit: 50,
-        total: resultsRes.data.results.length,
-        pages: Math.ceil(resultsRes.data.results.length / 50),
-      });
+      // Check if request was aborted
+      if (signal?.aborted) return;
+      
+      setTest(testRes.data);
+      setAllResults(resultsRes.data.results); // Store for search
+      setResults(resultsRes.data.results);
+      setPagination(resultsRes.data.pagination);
     } catch (err: any) {
+      if (err.name === 'AbortError') return; // Ignore aborted requests
       console.error('Failed to fetch test data:', err);
+      if (err.response?.status === 404) {
+        showError('Test not found');
+      } else if (err.code === 'ECONNREFUSED' || err.message?.includes('Network')) {
+        showError('Database connection failed. Please check your connection and try again.');
+      } else {
+        showError('Failed to load test data. Please try again.');
+      }
+    } finally {
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
+    }
+  };
+  
+  // Fetch page of results
+  const fetchPage = async (pageNum: number) => {
+    try {
+      setLoading(true);
+      const resultsRes = await resultsApi.getByTest(testId, pageNum, 50);
+      setResults(resultsRes.data.results);
+      setPagination(resultsRes.data.pagination);
+      setPage(pageNum);
+    } catch (err: any) {
+      console.error('Failed to fetch page:', err);
+      showError('Failed to load results. Please try again.');
     } finally {
       setLoading(false);
     }
   };
+  
+  // Fetch all results for search (only when needed)
+  const fetchAllResultsForSearch = async (signal?: AbortSignal) => {
+    try {
+      const resultsRes = await resultsApi.getByTest(testId, 1, 10000);
+      if (signal?.aborted) return;
+      setAllResults(resultsRes.data.results);
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      console.error('Failed to fetch all results for search:', err);
+    }
+  };
 
+  // Fetch all results when search is used (lazy loading)
+  useEffect(() => {
+    if (search.trim() && allResults.length < 100) {
+      // Only fetch all if we have less than 100 results and user is searching
+      fetchAllResultsForSearch();
+    }
+  }, [search]);
+  
   // Update paginated results when page changes (only when not searching)
   useEffect(() => {
-    if (!search && allResults.length > 0) {
-      const startIndex = (page - 1) * 50;
-      const endIndex = startIndex + 50;
-      setResults(allResults.slice(startIndex, endIndex));
+    if (!search.trim() && page > 1) {
+      // Fetch new page from server when not searching and page > 1
+      fetchPage(page);
     }
-  }, [page, allResults, search]);
+  }, [page, search]);
 
   // Filter results based on search query
   useEffect(() => {
@@ -164,7 +223,7 @@ export default function TestDetailPage() {
       const updatedResult = await resultsApi.getById(selectedResult._id);
       setSelectedResult(updatedResult.data);
       setIsEditingRemarks(false);
-      fetchData();
+      fetchData(); // Will be called without signal from other places
     } catch (error: any) {
       console.error('Failed to update remarks:', error);
       showError('Failed to update remarks: ' + (error.response?.data?.error || error.message));
@@ -218,7 +277,7 @@ export default function TestDetailPage() {
       setSelectedResult(updatedResult.data);
       setEditingQuestion(null);
       setQuestionData({ questionNumber: '', subtopic: '' });
-      fetchData();
+      fetchData(); // Will be called without signal from other places
       
       // Show success notification
       success('Question added successfully!');
@@ -259,7 +318,7 @@ export default function TestDetailPage() {
       await resultsApi.update(selectedResult._id, updateData);
       const updatedResult = await resultsApi.getById(selectedResult._id);
       setSelectedResult(updatedResult.data);
-      fetchData();
+      fetchData(); // Will be called without signal from other places
       success('Question deleted successfully!');
     } catch (error: any) {
       console.error('Failed to delete question:', error);
