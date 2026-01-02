@@ -343,19 +343,30 @@ export default function TestDetailPage() {
         subtopic: questionData.subtopic.trim()
       }];
 
+      // Clean currentData to remove mongoose _id and other fields that might interfere
+      const cleanCurrentData = {
+        right: currentData.right || 0,
+        wrong: currentData.wrong || 0,
+        unattempted: currentData.unattempted || 0,
+        score: currentData.score || 0,
+        unattemptedQuestions: currentData.unattemptedQuestions || [],
+        negativeQuestions: currentData.negativeQuestions || []
+      };
+
       const updateData = {
         [subjectKey]: {
-          ...currentData,
+          ...cleanCurrentData,
           [`${type}Questions`]: updatedQuestions
         }
       };
 
-      console.log('📤 Sending update data:', {
-        subjectKey,
-        updateData,
-        questionNumber: questionNum,
-        subtopic: questionData.subtopic
-      });
+      console.log('📤 PREPARING UPDATE:');
+      console.log('   Subject:', subjectKey);
+      console.log('   Type:', type);
+      console.log('   Current questions:', questions);
+      console.log('   Updated questions:', updatedQuestions);
+      console.log('   Clean current data:', cleanCurrentData);
+      console.log('   Final update data:', JSON.stringify(updateData, null, 2));
 
       const response = await resultsApi.update(selectedResult._id, updateData);
       
