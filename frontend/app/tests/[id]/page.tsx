@@ -69,6 +69,22 @@ export default function TestDetailPage() {
   
   // Force re-render key to ensure UI updates
   const [questionsUpdateKey, setQuestionsUpdateKey] = useState(0);
+  
+  // Helper function to normalize subject name to match state keys
+  const normalizeSubjectKey = (subjectName: string): keyof typeof resultQuestions => {
+    // Map display names to state keys
+    if (subjectName === 'Mathematics' || subjectName === 'Maths') {
+      return 'Mathematics';
+    }
+    if (subjectName === 'Physics') {
+      return 'Physics';
+    }
+    if (subjectName === 'Chemistry') {
+      return 'Chemistry';
+    }
+    // Default fallback
+    return subjectName as keyof typeof resultQuestions;
+  };
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -406,15 +422,17 @@ export default function TestDetailPage() {
         };
         
         setResultQuestions(prev => {
-          const subjectKey = subject as keyof typeof prev;
+          const subjectKey = normalizeSubjectKey(subject);
+          console.log(`🔄 Adding question to ${subjectKey} (from ${subject})`);
+          const currentSubject = prev[subjectKey] || { negative: [], unattempted: [] };
           const newState = {
             ...prev,
             [subjectKey]: {
-              ...prev[subjectKey],
-              [type]: [...(prev[subjectKey]?.[type] || []), newQuestion]
+              ...currentSubject,
+              [type]: [...(currentSubject[type] || []), newQuestion]
             }
           };
-          console.log('🔄 Optimistically updated questions:', newState);
+          console.log(`🔄 Optimistically updated questions for ${subjectKey}:`, newState[subjectKey]);
           return newState;
         });
         setQuestionsUpdateKey(prev => prev + 1);
@@ -942,8 +960,9 @@ export default function TestDetailPage() {
                           {(() => {
                             // Use the update key to force re-render
                             const _ = questionsUpdateKey;
-                            const questions = resultQuestions[subject.name as keyof typeof resultQuestions]?.unattempted || [];
-                            console.log(`🔍 Rendering unattempted for ${subject.name}:`, questions.length, 'questions');
+                            const subjectKey = normalizeSubjectKey(subject.name);
+                            const questions = resultQuestions[subjectKey]?.unattempted || [];
+                            console.log(`🔍 Rendering unattempted for ${subject.name} (key: ${subjectKey}):`, questions.length, 'questions', questions);
                             return questions.length > 0 ? (
                               <div key={`unattempted-${subject.name}-${questionsUpdateKey}`} className="space-y-2">
                                 {questions.map((q) => (
@@ -1043,8 +1062,9 @@ export default function TestDetailPage() {
                           {(() => {
                             // Use the update key to force re-render
                             const _ = questionsUpdateKey;
-                            const questions = resultQuestions[subject.name as keyof typeof resultQuestions]?.negative || [];
-                            console.log(`🔍 Rendering negative for ${subject.name}:`, questions.length, 'questions');
+                            const subjectKey = normalizeSubjectKey(subject.name);
+                            const questions = resultQuestions[subjectKey]?.negative || [];
+                            console.log(`🔍 Rendering negative for ${subject.name} (key: ${subjectKey}):`, questions.length, 'questions', questions);
                             return questions.length > 0 ? (
                               <div key={`negative-${subject.name}-${questionsUpdateKey}`} className="space-y-2">
                                 {questions.map((q) => (
