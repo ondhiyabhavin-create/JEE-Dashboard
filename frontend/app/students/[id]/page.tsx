@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, User, FileText, Calendar, BookOpen, Trash2 } from 'lucide-react';
+import { ArrowLeft, User, FileText, Calendar, BookOpen, Trash2, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { studentsApi, resultsApi, visitsApi, backlogApi } from '@/lib/api';
@@ -17,6 +17,7 @@ import OverviewTab from '@/components/premium/OverviewTab';
 import TestsTabPremium from '@/components/premium/TestsTabPremium';
 import VisitsTabPremium from '@/components/premium/VisitsTabPremium';
 import BacklogTabPremium from '@/components/premium/BacklogTabPremium';
+import NegativeUnattemptedTab from '@/components/premium/NegativeUnattemptedTab';
 
 export default function StudentDetailPage() {
   const params = useParams();
@@ -126,7 +127,7 @@ export default function StudentDetailPage() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="user" className="flex items-center gap-2">
               <User className="h-4 w-4" />
               User
@@ -142,6 +143,10 @@ export default function StudentDetailPage() {
             <TabsTrigger value="backlog" className="flex items-center gap-2">
               <BookOpen className="h-4 w-4" />
               Backlog
+            </TabsTrigger>
+            <TabsTrigger value="negative-unattempted" className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Negative/Unattempted
             </TabsTrigger>
           </TabsList>
 
@@ -191,6 +196,18 @@ export default function StudentDetailPage() {
                 transition={{ duration: 0.2 }}
               >
                 <BacklogTabPremium studentId={studentId} />
+              </motion.div>
+            </TabsContent>
+
+            <TabsContent value="negative-unattempted" className="mt-6">
+              <motion.div
+                key="negative-unattempted"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                <NegativeUnattemptedTab studentId={studentId} />
               </motion.div>
             </TabsContent>
           </AnimatePresence>
