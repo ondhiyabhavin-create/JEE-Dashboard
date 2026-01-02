@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Award, Calendar, X, FileText, Edit2, Save, Trash2, Plus, XCircle, Search, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { testsApi, resultsApi, syllabusApi } from '@/lib/api';
+import { testsApi, resultsApi, syllabusApi, studentTopicStatusApi } from '@/lib/api';
 import SubtopicSelector from '@/components/SubtopicSelector';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -308,6 +308,14 @@ export default function TestDetailPage() {
       setEditingQuestion(null);
       setQuestionData({ questionNumber: '', subtopic: '' });
       
+      // Refresh counts in background (don't wait - let it run async)
+      if (updatedResultData.studentId) {
+        studentTopicStatusApi.refreshCounts(updatedResultData.studentId).catch((err: any) => {
+          console.error('Failed to refresh counts:', err);
+          // Don't show error to user - counts will update eventually
+        });
+      }
+      
       // Show success notification
       success('Question added successfully!');
     } catch (error: any) {
@@ -361,6 +369,14 @@ export default function TestDetailPage() {
           r._id === selectedResult._id ? updatedResultData : r
         )
       );
+      
+      // Refresh counts in background (don't wait - let it run async)
+      if (updatedResultData.studentId) {
+        studentTopicStatusApi.refreshCounts(updatedResultData.studentId).catch((err: any) => {
+          console.error('Failed to refresh counts:', err);
+          // Don't show error to user - counts will update eventually
+        });
+      }
       
       success('Question deleted successfully!');
     } catch (error: any) {

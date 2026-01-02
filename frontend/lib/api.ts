@@ -17,7 +17,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000, // 30 second timeout (Lambda cold starts can take time)
+  timeout: 60000, // 60 second timeout (Lambda cold starts can take time)
 });
 
 // Add request interceptor for debugging
@@ -32,10 +32,55 @@ api.interceptors.request.use(
   }
 );
 
-// Add response interceptor for error handling
+// Retry logic for 503 errors and network issues
+const retryRequest = async (config: any, retries = 3): Promise<any> => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await axios(config);
+    } catch (error: any) {
+      const isLastAttempt = i === retries - 1;
+      const isRetryable = 
+        error.response?.status === 503 || 
+        error.response?.status === 502 ||
+        error.response?.status === 504 ||
+        error.code === 'ECONNRESET' ||
+        error.code === 'ETIMEDOUT' ||
+        error.message?.includes('Network Error') ||
+        error.message?.includes('timeout');
+
+      if (!isRetryable || isLastAttempt) {
+        throw error;
+      }
+
+      // Exponential backoff: wait 1s, 2s, 4s
+      const delay = Math.pow(2, i) * 1000;
+      console.log(`⏳ Retrying request (${i + 1}/${retries}) after ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+};
+
+// Add response interceptor for error handling and retry
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config;
+
+    // Retry 503, 502, 504 errors and network issues
+    if (
+      !originalRequest._retry &&
+      (error.response?.status === 503 || 
+       error.response?.status === 502 ||
+       error.response?.status === 504 ||
+       error.code === 'ECONNRESET' ||
+       error.code === 'ETIMEDOUT' ||
+       error.message?.includes('Network Error'))
+    ) {
+      originalRequest._retry = true;
+      console.log(`🔄 Retrying request due to ${error.response?.status || error.code || 'network error'}`);
+      return retryRequest(originalRequest, 3);
+    }
+
     if (error.code === 'ECONNREFUSED' || error.message?.includes('Network Error') || error.message?.includes('Failed to fetch')) {
       console.error('❌ Backend connection failed!');
       console.error('   Error:', error.message);
@@ -218,6 +263,7 @@ export const studentTopicStatusApi = {
     api.post(`/student-topic-status/student/${studentId}`, data),
   incrementNegative: (studentId: string, data: { subject: string; topicName: string; subtopicName: string }) =>
     api.post(`/student-topic-status/student/${studentId}/negative`, data),
+  refreshCounts: (studentId: string) => api.post(`/student-topic-status/student/${studentId}/refresh-counts`),
 };
 
 // WhatsApp API

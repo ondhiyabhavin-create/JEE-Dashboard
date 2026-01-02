@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import CountUp from '@/components/CountUp';
 import { formatDate, formatPercentage } from '@/lib/utils';
-import { resultsApi, syllabusApi } from '@/lib/api';
+import { resultsApi, syllabusApi, studentTopicStatusApi } from '@/lib/api';
 import SubtopicSelector from '@/components/SubtopicSelector';
 import { useToast } from '@/hooks/useToast';
 import { ToastContainer } from '@/components/ui/toast';
@@ -135,6 +135,14 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
       setEditingQuestion(null);
       setQuestionData({ questionNumber: '', subtopic: '' });
       
+      // Refresh counts in background (don't wait - let it run async)
+      if (updatedResultData.studentId) {
+        studentTopicStatusApi.refreshCounts(updatedResultData.studentId).catch((err: any) => {
+          console.error('Failed to refresh counts:', err);
+          // Don't show error to user - counts will update eventually
+        });
+      }
+      
       // Show success notification
       success('Question added successfully!');
       
@@ -178,6 +186,14 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
       
       // Update current result without refetching
       setCurrentResult(updatedResultData);
+      
+      // Refresh counts in background (don't wait - let it run async)
+      if (updatedResultData.studentId) {
+        studentTopicStatusApi.refreshCounts(updatedResultData.studentId).catch((err: any) => {
+          console.error('Failed to refresh counts:', err);
+          // Don't show error to user - counts will update eventually
+        });
+      }
       
       // Show success notification
       success('Question deleted successfully!');
