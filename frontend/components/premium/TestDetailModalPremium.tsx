@@ -137,10 +137,17 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
       
       // Refresh counts in background (don't wait - let it run async)
       if (updatedResultData.studentId) {
-        studentTopicStatusApi.refreshCounts(updatedResultData.studentId).catch((err: any) => {
-          console.error('Failed to refresh counts:', err);
-          // Don't show error to user - counts will update eventually
-        });
+        // Get the actual studentId - could be string or object
+        const studentId = typeof updatedResultData.studentId === 'string' 
+          ? updatedResultData.studentId 
+          : updatedResultData.studentId._id || updatedResultData.studentId.toString();
+        
+        if (studentId) {
+          studentTopicStatusApi.refreshCounts(studentId).catch((err: any) => {
+            console.error('Failed to refresh counts:', err);
+            // Don't show error to user - counts will update eventually
+          });
+        }
       }
       
       // Show success notification
@@ -189,10 +196,17 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
       
       // Refresh counts in background (don't wait - let it run async)
       if (updatedResultData.studentId) {
-        studentTopicStatusApi.refreshCounts(updatedResultData.studentId).catch((err: any) => {
-          console.error('Failed to refresh counts:', err);
-          // Don't show error to user - counts will update eventually
-        });
+        // Get the actual studentId - could be string or object
+        const studentId = typeof updatedResultData.studentId === 'string' 
+          ? updatedResultData.studentId 
+          : updatedResultData.studentId._id || updatedResultData.studentId.toString();
+        
+        if (studentId) {
+          studentTopicStatusApi.refreshCounts(studentId).catch((err: any) => {
+            console.error('Failed to refresh counts:', err);
+            // Don't show error to user - counts will update eventually
+          });
+        }
       }
       
       // Show success notification
