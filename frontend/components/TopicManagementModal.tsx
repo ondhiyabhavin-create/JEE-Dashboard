@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { syllabusApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useToast } from '@/hooks/useToast';
+import { ToastContainer } from '@/components/ui/toast';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 interface Topic {
   _id: string;
@@ -36,6 +39,9 @@ export default function TopicManagementModal({ open, onOpenChange }: TopicManage
   const [newSubject, setNewSubject] = useState({ subject: 'Physics' });
   const [newTopic, setNewTopic] = useState<{ [subjectId: string]: string }>({});
   const [newSubtopic, setNewSubtopic] = useState<{ [subjectId: string]: { [topicId: string]: string } }>({});
+  const { toasts, success: showSuccess, error: showError, warning: showWarning, removeToast } = useToast();
+  const [deleteSubtopicConfirm, setDeleteSubtopicConfirm] = useState<{ subjectId: string; topicId: string; subtopic: string } | null>(null);
+  const [deleteTopicConfirm, setDeleteTopicConfirm] = useState<{ subjectId: string; topicId: string } | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -68,7 +74,7 @@ export default function TopicManagementModal({ open, onOpenChange }: TopicManage
     // Check if subject already exists
     const exists = syllabus.find(s => s.subject === newSubject.subject);
     if (exists) {
-      alert('This subject already exists');
+      showWarning('This subject already exists');
       return;
     }
 
@@ -87,7 +93,7 @@ export default function TopicManagementModal({ open, onOpenChange }: TopicManage
       }
     } catch (err: any) {
       console.error('Failed to create subject:', err);
-      alert(err.response?.data?.error || 'Failed to create subject');
+      showError(err.response?.data?.error || 'Failed to create subject');
     }
   };
 
@@ -101,7 +107,7 @@ export default function TopicManagementModal({ open, onOpenChange }: TopicManage
       fetchSyllabus();
     } catch (err: any) {
       console.error('Failed to add topic:', err);
-      alert(err.response?.data?.error || 'Failed to add topic');
+      showError(err.response?.data?.error || 'Failed to add topic');
     }
   };
 
@@ -118,31 +124,45 @@ export default function TopicManagementModal({ open, onOpenChange }: TopicManage
       fetchSyllabus();
     } catch (err: any) {
       console.error('Failed to add subtopic:', err);
-      alert(err.response?.data?.error || 'Failed to add subtopic');
+      showError(err.response?.data?.error || 'Failed to add subtopic');
     }
   };
 
   const handleDeleteSubtopic = async (subjectId: string, topicId: string, subtopic: string) => {
-    if (!confirm('Are you sure you want to delete this subtopic?')) return;
+    setDeleteSubtopicConfirm({ subjectId, topicId, subtopic });
+  };
+
+  const confirmDeleteSubtopic = async () => {
+    if (!deleteSubtopicConfirm) return;
+    const { subjectId, topicId, subtopic } = deleteSubtopicConfirm;
+    setDeleteSubtopicConfirm(null);
 
     try {
       await syllabusApi.removeSubtopic(subjectId, topicId, subtopic);
       fetchSyllabus();
+      showSuccess('Subtopic deleted successfully!');
     } catch (err: any) {
       console.error('Failed to delete subtopic:', err);
-      alert(err.response?.data?.error || 'Failed to delete subtopic');
+      showError(err.response?.data?.error || 'Failed to delete subtopic');
     }
   };
 
   const handleDeleteTopic = async (subjectId: string, topicId: string) => {
-    if (!confirm('Are you sure you want to delete this topic? All subtopics will also be deleted.')) return;
+    setDeleteTopicConfirm({ subjectId, topicId });
+  };
+
+  const confirmDeleteTopic = async () => {
+    if (!deleteTopicConfirm) return;
+    const { subjectId, topicId } = deleteTopicConfirm;
+    setDeleteTopicConfirm(null);
 
     try {
       await syllabusApi.deleteTopic(subjectId, topicId);
       fetchSyllabus();
+      showSuccess('Topic deleted successfully!');
     } catch (err: any) {
       console.error('Failed to delete topic:', err);
-      alert(err.response?.data?.error || 'Failed to delete topic');
+      showError(err.response?.data?.error || 'Failed to delete topic');
     }
   };
 
@@ -402,6 +422,37 @@ export default function TopicManagementModal({ open, onOpenChange }: TopicManage
           </motion.div>
         </>
       )}
+      
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onClose={removeToast} />
+      
+      {/* Delete Subtopic Confirmation Dialog */}
+      <ConfirmDialog
+        open={deleteSubtopicConfirm !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteSubtopicConfirm(null);
+        }}
+        onConfirm={confirmDeleteSubtopic}
+        title="Delete Subtopic"
+        message={`Are you sure you want to delete the subtopic "${deleteSubtopicConfirm?.subtopic}"?`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="destructive"
+      />
+      
+      {/* Delete Topic Confirmation Dialog */}
+      <ConfirmDialog
+        open={deleteTopicConfirm !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTopicConfirm(null);
+        }}
+        onConfirm={confirmDeleteTopic}
+        title="Delete Topic"
+        message="Are you sure you want to delete this topic? All subtopics will also be deleted."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="destructive"
+      />
     </AnimatePresence>
   );
 }

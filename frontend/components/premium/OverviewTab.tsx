@@ -11,6 +11,8 @@ import { User, Phone, MapPin, Briefcase, FileText, Edit2, Save, X, Plus, Trash2,
 import { studentsApi } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useToast } from '@/hooks/useToast';
+import { ToastContainer } from '@/components/ui/toast';
 
 interface OverviewTabProps {
   student: any;
@@ -20,6 +22,7 @@ interface OverviewTabProps {
 export default function OverviewTab({ student, onUpdate }: OverviewTabProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const { toasts, error: showError, success: showSuccess, removeToast } = useToast();
   
   // Initialize form data from student prop
   const getInitialFormData = (studentData: any) => ({
@@ -74,7 +77,7 @@ export default function OverviewTab({ student, onUpdate }: OverviewTabProps) {
       if (onUpdate) onUpdate();
     } catch (error: any) {
       console.error('Failed to update student:', error);
-      alert('Failed to update student: ' + (error.response?.data?.error || error.message));
+      showError('Failed to update student: ' + (error.response?.data?.error || error.message));
     } finally {
       setIsSaving(false);
     }

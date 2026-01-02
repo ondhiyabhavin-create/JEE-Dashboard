@@ -14,6 +14,7 @@ import { resultsApi, syllabusApi } from '@/lib/api';
 import SubtopicSelector from '@/components/SubtopicSelector';
 import { useToast } from '@/hooks/useToast';
 import { ToastContainer } from '@/components/ui/toast';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 interface TestDetailModalPremiumProps {
   result: any;
@@ -30,7 +31,8 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
   const [editingQuestion, setEditingQuestion] = useState<{ type: string; subject: string; index: number } | null>(null);
   const [questionData, setQuestionData] = useState({ questionNumber: '', subtopic: '' });
   const [currentResult, setCurrentResult] = useState(result);
-  const { toasts, success, removeToast } = useToast();
+  const { toasts, success, error: showError, warning: showWarning, removeToast } = useToast();
+  const [deleteQuestionConfirm, setDeleteQuestionConfirm] = useState<{ type: string; subject: string; index: number } | null>(null);
   const [groupedSubtopics, setGroupedSubtopics] = useState<{
     Physics: Array<{ topicName: string; subtopicName: string; _id: string }>;
     Chemistry: Array<{ topicName: string; subtopicName: string; _id: string }>;
@@ -80,7 +82,7 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
       if (onUpdate) onUpdate();
     } catch (error: any) {
       console.error('Failed to update remarks:', error);
-      alert('Failed to update remarks: ' + (error.response?.data?.error || error.message));
+      showError('Failed to update remarks: ' + (error.response?.data?.error || error.message));
     } finally {
       setIsSaving(false);
     }
@@ -88,12 +90,12 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
 
   const handleAddQuestion = async (type: 'unattempted' | 'negative', subject: string) => {
     if (!questionData.questionNumber || questionData.questionNumber.trim() === '') {
-      alert('Please enter a question number');
+      showWarning('Please enter a question number');
       return;
     }
     
     if (!questionData.subtopic || questionData.subtopic.trim() === '') {
-      alert('Please select a subtopic from the dropdown');
+      showWarning('Please select a subtopic from the dropdown');
       return;
     }
 
@@ -132,7 +134,7 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
       if (onUpdate) onUpdate();
     } catch (error: any) {
       console.error('Failed to add question:', error);
-      alert('Failed to add question: ' + (error.response?.data?.error || error.message));
+      showError('Failed to add question: ' + (error.response?.data?.error || error.message));
     } finally {
       setIsSaving(false);
       setSavingButton(null);
@@ -140,7 +142,13 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
   };
 
   const handleDeleteQuestion = async (type: 'unattempted' | 'negative', subject: string, index: number) => {
-    if (!confirm('Are you sure you want to delete this question?')) return;
+    setDeleteQuestionConfirm({ type, subject, index });
+  };
+
+  const confirmDeleteQuestion = async () => {
+    if (!deleteQuestionConfirm) return;
+    const { type, subject, index } = deleteQuestionConfirm;
+    setDeleteQuestionConfirm(null);
 
     setIsSaving(true);
     try {
@@ -162,9 +170,10 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
       const updatedResult = await resultsApi.getById(currentResult._id);
       setCurrentResult(updatedResult.data);
       if (onUpdate) onUpdate();
+      success('Question deleted successfully!');
     } catch (error: any) {
       console.error('Failed to delete question:', error);
-      alert('Failed to delete question: ' + (error.response?.data?.error || error.message));
+      showError('Failed to delete question: ' + (error.response?.data?.error || error.message));
     } finally {
       setIsSaving(false);
     }
@@ -525,6 +534,20 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
       
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onClose={removeToast} />
+      
+      {/* Delete Question Confirmation Dialog */}
+      <ConfirmDialog
+        open={deleteQuestionConfirm !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteQuestionConfirm(null);
+        }}
+        onConfirm={confirmDeleteQuestion}
+        title="Delete Question"
+        message="Are you sure you want to delete this question? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="destructive"
+      />
     </AnimatePresence>
   );
 }

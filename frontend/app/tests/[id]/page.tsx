@@ -16,6 +16,7 @@ import { formatDate, formatPercentage } from '@/lib/utils';
 import CountUp from '@/components/CountUp';
 import { useToast } from '@/hooks/useToast';
 import { ToastContainer } from '@/components/ui/toast';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 export default function TestDetailPage() {
   const params = useParams();
@@ -40,7 +41,8 @@ export default function TestDetailPage() {
   const [savingButton, setSavingButton] = useState<string | null>(null); // Track which button is saving
   const [editingQuestion, setEditingQuestion] = useState<{ type: string; subject: string; index: number } | null>(null);
   const [questionData, setQuestionData] = useState({ questionNumber: '', subtopic: '' });
-  const { toasts, success, removeToast } = useToast();
+  const { toasts, success, error: showError, warning: showWarning, removeToast } = useToast();
+  const [deleteQuestionConfirm, setDeleteQuestionConfirm] = useState<{ type: string; subject: string; index: number } | null>(null);
   const [groupedSubtopics, setGroupedSubtopics] = useState<{
     Physics: Array<{ topicName: string; subtopicName: string; _id: string }>;
     Chemistry: Array<{ topicName: string; subtopicName: string; _id: string }>;
@@ -165,7 +167,7 @@ export default function TestDetailPage() {
       fetchData();
     } catch (error: any) {
       console.error('Failed to update remarks:', error);
-      alert('Failed to update remarks: ' + (error.response?.data?.error || error.message));
+      showError('Failed to update remarks: ' + (error.response?.data?.error || error.message));
     } finally {
       setIsSaving(false);
     }
@@ -175,17 +177,17 @@ export default function TestDetailPage() {
     console.log('🔍 handleAddQuestion called:', { type, subject, questionData });
     
     if (!selectedResult) {
-      alert('Please select a student result first');
+      showWarning('Please select a student result first');
       return;
     }
     
     if (!questionData.questionNumber || questionData.questionNumber.trim() === '') {
-      alert('Please enter a question number');
+      showWarning('Please enter a question number');
       return;
     }
     
     if (!questionData.subtopic || questionData.subtopic.trim() === '') {
-      alert('Please select a subtopic from the dropdown');
+      showWarning('Please select a subtopic from the dropdown');
       return;
     }
 
@@ -222,7 +224,7 @@ export default function TestDetailPage() {
       success('Question added successfully!');
     } catch (error: any) {
       console.error('Failed to add question:', error);
-      alert('Failed to add question: ' + (error.response?.data?.error || error.message));
+      showError('Failed to add question: ' + (error.response?.data?.error || error.message));
     } finally {
       setIsSaving(false);
       setSavingButton(null);
@@ -230,7 +232,14 @@ export default function TestDetailPage() {
   };
 
   const handleDeleteQuestion = async (type: 'unattempted' | 'negative', subject: string, index: number) => {
-    if (!selectedResult || !confirm('Are you sure you want to delete this question?')) return;
+    if (!selectedResult) return;
+    setDeleteQuestionConfirm({ type, subject, index });
+  };
+
+  const confirmDeleteQuestion = async () => {
+    if (!deleteQuestionConfirm || !selectedResult) return;
+    const { type, subject, index } = deleteQuestionConfirm;
+    setDeleteQuestionConfirm(null);
 
     setIsSaving(true);
     try {
@@ -251,9 +260,10 @@ export default function TestDetailPage() {
       const updatedResult = await resultsApi.getById(selectedResult._id);
       setSelectedResult(updatedResult.data);
       fetchData();
+      success('Question deleted successfully!');
     } catch (error: any) {
       console.error('Failed to delete question:', error);
-      alert('Failed to delete question: ' + (error.response?.data?.error || error.message));
+      showError('Failed to delete question: ' + (error.response?.data?.error || error.message));
     } finally {
       setIsSaving(false);
     }
@@ -833,6 +843,20 @@ export default function TestDetailPage() {
       
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onClose={removeToast} />
+      
+      {/* Delete Question Confirmation Dialog */}
+      <ConfirmDialog
+        open={deleteQuestionConfirm !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteQuestionConfirm(null);
+        }}
+        onConfirm={confirmDeleteQuestion}
+        title="Delete Question"
+        message="Are you sure you want to delete this question? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="destructive"
+      />
     </>
   );
 }

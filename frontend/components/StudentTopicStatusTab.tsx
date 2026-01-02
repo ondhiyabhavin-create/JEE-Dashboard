@@ -6,6 +6,8 @@ import { CheckCircle2, XCircle, AlertCircle, BookOpen, TrendingDown } from 'luci
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { topicsApi, studentTopicStatusApi } from '@/lib/api';
+import { useToast } from '@/hooks/useToast';
+import { ToastContainer } from '@/components/ui/toast';
 
 interface Subtopic {
   _id: string;
@@ -55,6 +57,7 @@ export default function StudentTopicStatusTab({ studentId }: StudentTopicStatusT
   const [topics, setTopics] = useState<Topic[]>([]);
   const [statuses, setStatuses] = useState<StudentTopicStatus[]>([]);
   const [loading, setLoading] = useState(true);
+  const { toasts, error: showError, removeToast } = useToast();
 
   useEffect(() => {
     fetchData();
@@ -88,7 +91,7 @@ export default function StudentTopicStatusTab({ studentId }: StudentTopicStatusT
       fetchData();
     } catch (err: any) {
       console.error('Failed to update status:', err);
-      alert(err.response?.data?.error || 'Failed to update status');
+      showError(err.response?.data?.error || 'Failed to update status');
     }
   };
 
@@ -201,6 +204,9 @@ export default function StudentTopicStatusTab({ studentId }: StudentTopicStatusT
           </CardContent>
         </Card>
       ))}
+      
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onClose={removeToast} />
     </div>
   );
 }
