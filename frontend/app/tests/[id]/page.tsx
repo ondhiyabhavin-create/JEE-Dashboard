@@ -266,6 +266,30 @@ export default function TestDetailPage() {
     }
   }, [selectedResult]);
 
+  // Memoize subjects to ensure it updates when selectedResult changes (must be before early returns)
+  const subjects = useMemo(() => {
+    const subs = [
+      { name: 'Physics', key: 'physics', data: selectedResult?.physics, color: 'text-blue-600', bgColor: 'bg-blue-50 dark:bg-blue-950/20', borderColor: 'border-blue-200 dark:border-blue-800' },
+      { name: 'Chemistry', key: 'chemistry', data: selectedResult?.chemistry, color: 'text-green-600', bgColor: 'bg-green-50 dark:bg-green-950/20', borderColor: 'border-green-200 dark:border-green-800' },
+      { name: 'Mathematics', key: 'maths', data: selectedResult?.maths, color: 'text-purple-600', bgColor: 'bg-purple-50 dark:bg-purple-950/20', borderColor: 'border-purple-200 dark:border-purple-800' },
+    ];
+    
+    // Debug log
+    if (selectedResult) {
+      console.log('🎨 SUBJECTS MEMOIZED:');
+      subs.forEach(subject => {
+        console.log(`   ${subject.name}:`, {
+          negativeQuestions: subject.data?.negativeQuestions,
+          negativeQuestionsLength: subject.data?.negativeQuestions?.length,
+          unattemptedQuestions: subject.data?.unattemptedQuestions,
+          unattemptedQuestionsLength: subject.data?.unattemptedQuestions?.length,
+        });
+      });
+    }
+    
+    return subs;
+  }, [selectedResult]);
+
   const handleSaveRemarks = async () => {
     if (!selectedResult) return;
     setIsSaving(true);
@@ -571,30 +595,6 @@ export default function TestDetailPage() {
       </div>
     );
   }
-
-  // Memoize subjects to ensure it updates when selectedResult changes
-  const subjects = useMemo(() => {
-    const subs = [
-      { name: 'Physics', key: 'physics', data: selectedResult?.physics, color: 'text-blue-600', bgColor: 'bg-blue-50 dark:bg-blue-950/20', borderColor: 'border-blue-200 dark:border-blue-800' },
-      { name: 'Chemistry', key: 'chemistry', data: selectedResult?.chemistry, color: 'text-green-600', bgColor: 'bg-green-50 dark:bg-green-950/20', borderColor: 'border-green-200 dark:border-green-800' },
-      { name: 'Mathematics', key: 'maths', data: selectedResult?.maths, color: 'text-purple-600', bgColor: 'bg-purple-50 dark:bg-purple-950/20', borderColor: 'border-purple-200 dark:border-purple-800' },
-    ];
-    
-    // Debug log
-    if (selectedResult) {
-      console.log('🎨 SUBJECTS MEMOIZED:');
-      subs.forEach(subject => {
-        console.log(`   ${subject.name}:`, {
-          negativeQuestions: subject.data?.negativeQuestions,
-          negativeQuestionsLength: subject.data?.negativeQuestions?.length,
-          unattemptedQuestions: subject.data?.unattemptedQuestions,
-          unattemptedQuestionsLength: subject.data?.unattemptedQuestions?.length,
-        });
-      });
-    }
-    
-    return subs;
-  }, [selectedResult]);
 
   return (
     <>
