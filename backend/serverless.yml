@@ -9,8 +9,8 @@ provider:
   runtime: nodejs18.x
   region: ${opt:region, 'us-east-1'}
   stage: ${opt:stage, 'dev'}
-  timeout: 60
-  memorySize: 1024
+  timeout: 90
+  memorySize: 1536
   environment:
     MONGODB_URI: ${env:MONGODB_URI}
     JWT_SECRET: ${env:JWT_SECRET}
@@ -35,6 +35,8 @@ provider:
 functions:
   api:
     handler: lambda.handler
+    # Uncomment below to keep Lambda warm (reduces cold starts but costs more)
+    # provisionedConcurrency: 1
     events:
       - http:
           path: /{proxy+}

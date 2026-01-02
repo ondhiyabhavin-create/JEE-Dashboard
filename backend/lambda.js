@@ -38,8 +38,8 @@ let dbInitialized = false;
 let dbInitPromise = null;
 
 const initializeDB = async () => {
-  // If already initialized and connected, return immediately
-  if (dbInitialized && mongoose.connection.readyState === 1) {
+  // If already connected, return immediately
+  if (mongoose.connection.readyState === 1) {
     return;
   }
   
@@ -67,6 +67,7 @@ const initializeDB = async () => {
     } catch (err) {
       console.error('Failed to initialize database:', err);
       dbInitPromise = null; // Reset so we can retry
+      dbInitialized = false;
       throw err;
     }
   })();
@@ -82,20 +83,23 @@ app.use(async (req, res, next) => {
   }
   
   try {
+    // Initialize DB - simple and reliable
     await initializeDB();
-    // Verify connection is ready
+    
+    // Simple check - if not connected, return error
     if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({ 
         error: 'Database connection not ready',
-        state: mongoose.connection.readyState 
+        message: 'Please try again in a moment'
       });
     }
+    
     next();
   } catch (err) {
     console.error('DB middleware error:', err.message);
     return res.status(503).json({ 
       error: 'Database connection failed',
-      message: err.message 
+      message: err.message
     });
   }
 });
@@ -153,13 +157,18 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// MongoDB connection handler for Lambda
-let cachedDb = null;
+// MongoDB connection handler for Lambda - SIMPLIFIED for reliability
+let connectionPromise = null;
 
 const connectDB = async () => {
-  // Return cached connection if available
-  if (cachedDb && mongoose.connection.readyState === 1) {
-    return cachedDb;
+  // If already connected, return immediately
+  if (mongoose.connection.readyState === 1) {
+    return mongoose.connection;
+  }
+
+  // If connection is in progress, wait for it
+  if (connectionPromise) {
+    return connectionPromise;
   }
 
   // Hardcoded MongoDB URI as fallback
@@ -168,70 +177,60 @@ const connectDB = async () => {
   let mongoURI = process.env.MONGODB_URI || HARDCODED_MONGODB_URI;
   
   if (!mongoURI) {
-    console.error('❌ MONGODB_URI environment variable is not set, using hardcoded fallback');
     mongoURI = HARDCODED_MONGODB_URI;
   }
 
-  // Validate connection string format
+  // Validate and prepare connection string
   const trimmedURI = mongoURI.trim();
   if (!trimmedURI.startsWith('mongodb://') && !trimmedURI.startsWith('mongodb+srv://')) {
-    console.error('❌ Invalid MongoDB URI format, using hardcoded fallback');
-    console.error('URI length:', trimmedURI.length);
-    console.error('URI starts with:', trimmedURI.substring(0, 20));
-    // Use hardcoded URI as fallback
     mongoURI = HARDCODED_MONGODB_URI;
   }
   
-  // Re-trim after potential fallback
-  const finalURI = mongoURI.trim();
-
-  // Ensure database name is in the connection string for Atlas
-  let connectionString = finalURI;
-  if (finalURI.includes('mongodb+srv://')) {
-    const dbMatch = finalURI.match(/mongodb\+srv:\/\/[^@]+@[^\/]+\/([^?]+)/);
+  let connectionString = mongoURI.trim();
+  
+  // Ensure database name is in connection string
+  if (connectionString.includes('mongodb+srv://')) {
+    const dbMatch = connectionString.match(/mongodb\+srv:\/\/[^@]+@[^\/]+\/([^?]+)/);
     if (!dbMatch) {
-      connectionString = finalURI.replace(/\?/, '/jee-dashboard?').replace(/\/$/, '/jee-dashboard');
-      if (!connectionString.includes('/jee-dashboard')) {
-        connectionString = finalURI.endsWith('/') 
-          ? finalURI + 'jee-dashboard' 
-          : finalURI + '/jee-dashboard';
-      }
-    }
-  } else if (finalURI.includes('mongodb://')) {
-    // Handle regular mongodb:// connection strings
-    const dbMatch = finalURI.match(/mongodb:\/\/[^\/]+\/([^?]+)/);
-    if (!dbMatch) {
-      connectionString = finalURI.replace(/\?/, '/jee-dashboard?').replace(/\/$/, '/jee-dashboard');
-      if (!connectionString.includes('/jee-dashboard')) {
-        connectionString = finalURI.endsWith('/') 
-          ? finalURI + 'jee-dashboard' 
-          : finalURI + '/jee-dashboard';
+      if (connectionString.endsWith('/')) {
+        connectionString = connectionString + 'jee-dashboard';
+      } else {
+        connectionString = connectionString + '/jee-dashboard';
       }
     }
   }
 
-  try {
-    // Close existing connection if any
-    if (mongoose.connection.readyState !== 0) {
-      await mongoose.connection.close();
+  // Start connection
+  connectionPromise = (async () => {
+    try {
+      // Close existing connection if disconnected
+      if (mongoose.connection.readyState === 3) {
+        try {
+          await mongoose.connection.close();
+        } catch (e) {
+          // Ignore close errors
+        }
+      }
+
+      await mongoose.connect(connectionString, {
+        serverSelectionTimeoutMS: 15000,
+        socketTimeoutMS: 45000,
+        maxPoolSize: 10,
+        minPoolSize: 1,
+        connectTimeoutMS: 15000,
+        maxIdleTimeMS: 300000, // 5 minutes
+      });
+
+      console.log('✅ MongoDB connected successfully');
+      return mongoose.connection;
+    } catch (err) {
+      console.error('❌ MongoDB connection failed:', err.message);
+      connectionPromise = null; // Reset so we can retry
+      throw err;
     }
+  })();
 
-    await mongoose.connect(connectionString, {
-      serverSelectionTimeoutMS: 10000,
-      socketTimeoutMS: 45000,
-      maxPoolSize: 5,
-      minPoolSize: 1,
-      connectTimeoutMS: 10000,
-      bufferCommands: false, // Disable mongoose buffering - fail fast if not connected
-    });
-
-    cachedDb = mongoose.connection;
-    console.log('✅ MongoDB connected successfully (Lambda)');
-    return cachedDb;
-  } catch (err) {
-    console.error('❌ MongoDB connection failed:', err.message);
-    throw err;
-  }
+  return connectionPromise;
 };
 
 // Lambda handler

@@ -79,12 +79,14 @@ const connectDB = async () => {
     }
 
     await mongoose.connect(connectionString, {
-      serverSelectionTimeoutMS: 10000,
-      socketTimeoutMS: 45000,
-      maxPoolSize: 5,
-      minPoolSize: 1,
-      connectTimeoutMS: 10000,
-      bufferCommands: false, // Disable mongoose buffering - fail fast if not connected
+      serverSelectionTimeoutMS: 30000,
+      socketTimeoutMS: 60000,
+      maxPoolSize: 10,
+      minPoolSize: 2,
+      connectTimeoutMS: 30000,
+      maxIdleTimeMS: 300000, // 5 minutes
+      retryWrites: true,
+      retryReads: true,
     });
 
     cachedDb = mongoose.connection;

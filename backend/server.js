@@ -61,8 +61,12 @@ const connectDB = async (retries = 3) => {
   for (let i = 0; i < retries; i++) {
     try {
       await mongoose.connect(connectionString, {
-        serverSelectionTimeoutMS: 5000,
+        serverSelectionTimeoutMS: 30000, // Increased from 5s to 30s
         socketTimeoutMS: 45000,
+        maxPoolSize: 10, // Maintain up to 10 socket connections
+        minPoolSize: 2, // Maintain at least 2 socket connections
+        maxIdleTimeMS: 30000, // Close connections after 30s of inactivity
+        connectTimeoutMS: 30000, // Give up initial connection after 30s
       });
       console.log('✅ MongoDB connected successfully');
       return;

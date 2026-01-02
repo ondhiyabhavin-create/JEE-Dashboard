@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const StudentTopicStatus = require('../models/StudentTopicStatus');
+const StudentTestResult = require('../models/StudentTestResult');
 const Syllabus = require('../models/Syllabus');
 
 // Get all topic statuses for a student
@@ -172,6 +173,80 @@ router.post('/student/:studentId/negative', async (req, res) => {
   } catch (error) {
     console.error('Increment negative count error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get subtopic counts for a student (grouped by subject/topic/subtopic)
+router.get('/student/:studentId/counts', async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    
+    // Get all statuses for this student that have counts
+    const statuses = await StudentTopicStatus.find({ 
+      studentId,
+      $or: [
+        { negativeCount: { $gt: 0 } },
+        { unattemptedCount: { $gt: 0 } }
+      ]
+    }).lean();
+    
+    // Group by subject -> topic -> subtopic
+    const groupedCounts = {};
+    
+    statuses.forEach(status => {
+      const { subject, topicName, subtopicName, negativeCount, unattemptedCount } = status;
+      
+      if (!groupedCounts[subject]) {
+        groupedCounts[subject] = {};
+      }
+      
+      if (!groupedCounts[subject][topicName]) {
+        groupedCounts[subject][topicName] = {};
+      }
+      
+      groupedCounts[subject][topicName][subtopicName] = {
+        negative: negativeCount || 0,
+        unattempted: unattemptedCount || 0
+      };
+    });
+    
+    res.json({ 
+      success: true, 
+      data: groupedCounts 
+    });
+  } catch (error) {
+    console.error('Get subtopic counts error:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+// Refresh/Recalculate counts for a student (called after saving questions)
+router.post('/student/:studentId/refresh-counts', async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    
+    // Import the updateSubtopicCounts function from results route
+    const resultsRoute = require('./results');
+    const updateSubtopicCounts = resultsRoute.updateSubtopicCounts;
+    
+    if (!updateSubtopicCounts) {
+      return res.status(500).json({ error: 'Count update function not available' });
+    }
+
+    // Call the update function and wait for completion
+    await updateSubtopicCounts(studentId, true);
+    
+    // Return updated statuses
+    const updatedStatuses = await StudentTopicStatus.find({ studentId }).lean();
+    
+    res.json({ 
+      success: true, 
+      message: 'Counts refreshed successfully',
+      data: updatedStatuses 
+    });
+  } catch (error) {
+    console.error('Refresh counts error:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 

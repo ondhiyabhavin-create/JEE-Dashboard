@@ -3,8 +3,8 @@ const router = express.Router();
 const StudentTestResult = require('../models/StudentTestResult');
 const StudentTopicStatus = require('../models/StudentTopicStatus');
 
-// Helper function to update subtopic counts
-const updateSubtopicCounts = async (studentId) => {
+// Helper function to update subtopic counts (can be called synchronously or in background)
+const updateSubtopicCounts = async (studentId, waitForCompletion = false) => {
   try {
     const subjects = ['physics', 'chemistry', 'maths'];
     const subjectMap = {
@@ -14,11 +14,11 @@ const updateSubtopicCounts = async (studentId) => {
     };
 
     // Get all test results for this student
-    const allResults = await StudentTestResult.find({ studentId });
+    const allResults = await StudentTestResult.find({ studentId }).lean(); // Use lean() for better performance
 
     // Get all syllabus to build a subtopic lookup map
     const Syllabus = require('../models/Syllabus');
-    const allSyllabus = await Syllabus.find();
+    const allSyllabus = await Syllabus.find().lean(); // Use lean() for better performance
     
     // Build a map: subject -> subtopicName -> { topicName, subtopicName }
     const subtopicMap = {};
@@ -101,18 +101,31 @@ const updateSubtopicCounts = async (studentId) => {
         { upsert: true, new: true }
       );
     }
+    
+    console.log(`✅ Updated counts for student ${studentId}:`, {
+      totalSubtopics: Object.keys(counts).length,
+      totalNegative: Object.values(counts).reduce((sum, c) => sum + c.negative, 0),
+      totalUnattempted: Object.values(counts).reduce((sum, c) => sum + c.unattempted, 0)
+    });
   } catch (error) {
     console.error('Error updating subtopic counts:', error);
+    if (waitForCompletion) {
+      throw error; // Throw if we're waiting for completion
+    }
     // Don't throw - this is a background operation
   }
 };
+
+// Export the function so it can be used in other routes
+module.exports.updateSubtopicCounts = updateSubtopicCounts;
 
 // Get all results for a student
 router.get('/student/:studentId', async (req, res) => {
   try {
     const results = await StudentTestResult.find({ studentId: req.params.studentId })
       .populate('testId', 'testName testDate maxMarks')
-      .sort({ 'testId.testDate': -1 });
+      .sort({ 'testId.testDate': -1 })
+      .lean(); // Use lean() for better performance
     res.json(results);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -142,9 +155,9 @@ router.post('/', async (req, res) => {
     await result.populate('studentId', 'rollNumber name batch');
     await result.populate('testId', 'testName testDate maxMarks');
     
-    // Update subtopic counts in background
+    // Update subtopic counts in background (don't wait - return response immediately)
     if (result.studentId) {
-      updateSubtopicCounts(result.studentId).catch(err => {
+      updateSubtopicCounts(result.studentId, false).catch(err => {
         console.error('Background count update failed:', err);
       });
     }
@@ -161,24 +174,89 @@ router.post('/', async (req, res) => {
 // Update result (for editing topic/subtopic and remarks)
 router.put('/:id', async (req, res) => {
   try {
-    const result = await StudentTestResult.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    );
-    if (!result) {
+    // Fetch existing result first to preserve all data
+    const existingResult = await StudentTestResult.findById(req.params.id);
+    if (!existingResult) {
       return res.status(404).json({ error: 'Result not found' });
     }
+
+    console.log('📥 Received update request:', {
+      body: req.body,
+      existingPhysics: existingResult.physics,
+      existingChemistry: existingResult.chemistry,
+      existingMaths: existingResult.maths
+    });
+
+    // Build update object using $set operator for proper nested updates
+    const updateFields = {};
     
-    // Update subtopic counts in background
+    // If updating a specific subject, merge that subject's data properly
+    if (req.body.physics || req.body.chemistry || req.body.maths) {
+      ['physics', 'chemistry', 'maths'].forEach(subject => {
+        if (req.body[subject]) {
+          const existingSubject = existingResult[subject] || {};
+          const newSubjectData = req.body[subject];
+          
+          // Merge subject data, ensuring arrays are properly replaced
+          const mergedSubject = {
+            right: newSubjectData.right !== undefined ? newSubjectData.right : existingSubject.right,
+            wrong: newSubjectData.wrong !== undefined ? newSubjectData.wrong : existingSubject.wrong,
+            unattempted: newSubjectData.unattempted !== undefined ? newSubjectData.unattempted : existingSubject.unattempted,
+            score: newSubjectData.score !== undefined ? newSubjectData.score : existingSubject.score,
+            // Arrays should be replaced if provided, otherwise keep existing
+            unattemptedQuestions: newSubjectData.unattemptedQuestions !== undefined 
+              ? newSubjectData.unattemptedQuestions 
+              : existingSubject.unattemptedQuestions || [],
+            negativeQuestions: newSubjectData.negativeQuestions !== undefined 
+              ? newSubjectData.negativeQuestions 
+              : existingSubject.negativeQuestions || []
+          };
+          
+          updateFields[subject] = mergedSubject;
+          
+          console.log(`📝 Merged ${subject} data:`, {
+            existing: existingSubject,
+            new: newSubjectData,
+            merged: mergedSubject
+          });
+        }
+      });
+    }
+    
+    // Handle remarks update
+    if (req.body.remarks !== undefined) {
+      updateFields.remarks = req.body.remarks;
+    }
+
+    console.log('📤 Update fields:', updateFields);
+
+    // Update the document using $set to ensure proper nested updates
+    const result = await StudentTestResult.findByIdAndUpdate(
+      req.params.id,
+      { $set: updateFields },
+      { new: true, runValidators: true }
+    );
+    
+    console.log('✅ Updated result:', {
+      physics: result.physics,
+      chemistry: result.chemistry,
+      maths: result.maths
+    });
+    
+    // Populate student and test data
+    await result.populate('studentId', 'rollNumber name batch');
+    await result.populate('testId', 'testName testDate maxMarks');
+    
+    // Update subtopic counts in background (don't wait - return response immediately)
     if (result.studentId) {
-      updateSubtopicCounts(result.studentId).catch(err => {
+      updateSubtopicCounts(result.studentId, false).catch(err => {
         console.error('Background count update failed:', err);
       });
     }
     
     res.json(result);
   } catch (error) {
+    console.error('❌ Update result error:', error);
     res.status(400).json({ error: error.message });
   }
 });
@@ -194,7 +272,8 @@ router.get('/test/:testId', async (req, res) => {
       .populate('studentId', 'rollNumber name batch')
       .sort({ 'totals.rank': 1 })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .lean(); // Use lean() for better performance on read-only queries
 
     const total = await StudentTestResult.countDocuments({ testId: req.params.testId });
 
@@ -212,5 +291,7 @@ router.get('/test/:testId', async (req, res) => {
   }
 });
 
+// Export router and the updateSubtopicCounts function
+router.updateSubtopicCounts = updateSubtopicCounts;
 module.exports = router;
 

@@ -17,5 +17,8 @@ const testSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Add index for faster queries
+testSchema.index({ testDate: -1 }); // Index for sorting by date
+
 module.exports = mongoose.model('Test', testSchema);
 

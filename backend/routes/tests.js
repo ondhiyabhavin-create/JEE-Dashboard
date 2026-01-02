@@ -37,7 +37,7 @@ const upload = multer({
 // Get all tests
 router.get('/', async (req, res) => {
   try {
-    const tests = await Test.find().sort({ testDate: -1 });
+    const tests = await Test.find().sort({ testDate: -1 }).lean(); // Use lean() for better performance
     res.json(tests);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -47,7 +47,7 @@ router.get('/', async (req, res) => {
 // Get test by ID
 router.get('/:id', async (req, res) => {
   try {
-    const test = await Test.findById(req.params.id);
+    const test = await Test.findById(req.params.id).lean(); // Use lean() for better performance
     if (!test) {
       return res.status(404).json({ error: 'Test not found' });
     }

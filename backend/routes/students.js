@@ -59,7 +59,8 @@ router.get('/', async (req, res) => {
     const students = await Student.find(query)
       .sort({ rollNumber: 1 })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .lean(); // Use lean() for better performance on read-only queries
 
     const total = await Student.countDocuments(query);
 

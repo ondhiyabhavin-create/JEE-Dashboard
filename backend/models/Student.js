@@ -64,5 +64,9 @@ const studentSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Add indexes for faster search queries
+studentSchema.index({ name: 'text', rollNumber: 'text', batch: 'text', email: 'text' }); // Text index for search
+studentSchema.index({ batch: 1 }); // Index for batch filtering
+
 module.exports = mongoose.model('Student', studentSchema);
 
