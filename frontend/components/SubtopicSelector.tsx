@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Search, X, Check } from 'lucide-react';
+import { Search, X, Check, XCircle, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +19,14 @@ interface SubtopicSelectorProps {
   options: SubtopicOption[];
   placeholder?: string;
   className?: string;
+  subtopicCounts?: {
+    [topicName: string]: {
+      [subtopicName: string]: {
+        negative: number;
+        unattempted: number;
+      };
+    };
+  };
 }
 
 export default function SubtopicSelector({
@@ -27,7 +35,8 @@ export default function SubtopicSelector({
   onChange,
   options,
   placeholder = 'Search and select subtopic...',
-  className = ''
+  className = '',
+  subtopicCounts = {}
 }: SubtopicSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -111,23 +120,48 @@ export default function SubtopicSelector({
                 No subtopics found
               </div>
             ) : (
-              filteredOptions.map((option) => (
-                <div
-                  key={option._id}
-                  onClick={() => handleSelect(option.subtopicName)}
-                  className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-accent rounded-sm ${
-                    value === option.subtopicName ? 'bg-accent' : ''
-                  }`}
-                >
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">{option.subtopicName}</div>
-                    <div className="text-xs text-muted-foreground">{option.topicName}</div>
+              filteredOptions.map((option) => {
+                const counts = subtopicCounts[option.topicName]?.[option.subtopicName];
+                const negativeCount = counts?.negative || 0;
+                const unattemptedCount = counts?.unattempted || 0;
+                const hasCounts = negativeCount > 0 || unattemptedCount > 0;
+                
+                return (
+                  <div
+                    key={option._id}
+                    onClick={() => handleSelect(option.subtopicName)}
+                    className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-accent rounded-sm ${
+                      value === option.subtopicName ? 'bg-accent' : ''
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-medium truncate">{option.subtopicName}</div>
+                        {hasCounts && (
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            {negativeCount > 0 && (
+                              <Badge variant="destructive" className="text-xs px-1.5 py-0.5 h-5">
+                                <XCircle className="h-2.5 w-2.5 mr-0.5" />
+                                {negativeCount}
+                              </Badge>
+                            )}
+                            {unattemptedCount > 0 && (
+                              <Badge variant="outline" className="text-xs px-1.5 py-0.5 h-5 border-yellow-500 text-yellow-700 dark:text-yellow-400">
+                                <AlertCircle className="h-2.5 w-2.5 mr-0.5" />
+                                {unattemptedCount}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground">{option.topicName}</div>
+                    </div>
+                    {value === option.subtopicName && (
+                      <Check className="h-4 w-4 text-primary flex-shrink-0" />
+                    )}
                   </div>
-                  {value === option.subtopicName && (
-                    <Check className="h-4 w-4 text-primary" />
-                  )}
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

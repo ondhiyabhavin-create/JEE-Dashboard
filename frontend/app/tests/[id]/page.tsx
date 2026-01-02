@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Award, Calendar, X, FileText, Edit2, Save, Trash2, Plus, XCircle, Search, Loader2 } from 'lucide-react';
+import { ArrowLeft, Award, Calendar, X, FileText, Edit2, Save, Trash2, Plus, XCircle, Search, Loader2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { testsApi, resultsApi, syllabusApi, studentTopicStatusApi } from '@/lib/api';
 import SubtopicSelector from '@/components/SubtopicSelector';
@@ -48,6 +48,17 @@ export default function TestDetailPage() {
     Chemistry: Array<{ topicName: string; subtopicName: string; _id: string }>;
     Mathematics: Array<{ topicName: string; subtopicName: string; _id: string }>;
   }>({ Physics: [], Chemistry: [], Mathematics: [] });
+  const [subtopicCounts, setSubtopicCounts] = useState<{
+    [subject: string]: {
+      [topicName: string]: {
+        [subtopicName: string]: {
+          negative: number;
+          unattempted: number;
+        };
+      };
+    };
+  }>({});
+  const [loadingCounts, setLoadingCounts] = useState(false);
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -118,8 +129,33 @@ export default function TestDetailPage() {
   useEffect(() => {
     if (selectedResult) {
       setRemarks(selectedResult.remarks || '');
+      // Fetch subtopic counts for this student
+      fetchSubtopicCounts();
+    } else {
+      setSubtopicCounts({});
     }
   }, [selectedResult]);
+
+  const fetchSubtopicCounts = async () => {
+    if (!selectedResult?.studentId) return;
+    
+    try {
+      setLoadingCounts(true);
+      const studentId = typeof selectedResult.studentId === 'string' 
+        ? selectedResult.studentId 
+        : selectedResult.studentId._id || selectedResult.studentId.toString();
+      
+      const response = await studentTopicStatusApi.getSubtopicCounts(studentId);
+      if (response.data?.success && response.data.data) {
+        setSubtopicCounts(response.data.data);
+      }
+    } catch (error: any) {
+      console.error('Failed to fetch subtopic counts:', error);
+      // Don't show error to user - counts are optional
+    } finally {
+      setLoadingCounts(false);
+    }
+  };
 
   const fetchData = async (signal?: AbortSignal, pageNum: number = 1) => {
     try {
@@ -328,7 +364,7 @@ export default function TestDetailPage() {
       setEditingQuestion(null);
       setQuestionData({ questionNumber: '', subtopic: '' });
       
-      // Refresh counts in background (don't wait - let it run async)
+      // Refresh counts and update UI immediately
       if (updatedResultData.studentId) {
         // Get the actual studentId - could be string or object
         const studentId = typeof updatedResultData.studentId === 'string' 
@@ -336,10 +372,28 @@ export default function TestDetailPage() {
           : updatedResultData.studentId._id || updatedResultData.studentId.toString();
         
         if (studentId) {
-          studentTopicStatusApi.refreshCounts(studentId).catch((err: any) => {
-            console.error('Failed to refresh counts:', err);
-            // Don't show error to user - counts will update eventually
-          });
+          // Refresh counts and update UI
+          studentTopicStatusApi.refreshCounts(studentId)
+            .then((response) => {
+              // Update counts in UI immediately
+              if (response.data?.success && response.data.data) {
+                // Convert array to grouped format
+                const grouped: typeof subtopicCounts = {};
+                response.data.data.forEach((status: any) => {
+                  if (!grouped[status.subject]) grouped[status.subject] = {};
+                  if (!grouped[status.subject][status.topicName]) grouped[status.subject][status.topicName] = {};
+                  grouped[status.subject][status.topicName][status.subtopicName] = {
+                    negative: status.negativeCount || 0,
+                    unattempted: status.unattemptedCount || 0
+                  };
+                });
+                setSubtopicCounts(grouped);
+              }
+            })
+            .catch((err: any) => {
+              console.error('Failed to refresh counts:', err);
+              // Still show success - counts will update eventually
+            });
         }
       }
       
@@ -397,7 +451,7 @@ export default function TestDetailPage() {
         )
       );
       
-      // Refresh counts in background (don't wait - let it run async)
+      // Refresh counts and update UI immediately
       if (updatedResultData.studentId) {
         // Get the actual studentId - could be string or object
         const studentId = typeof updatedResultData.studentId === 'string' 
@@ -405,10 +459,28 @@ export default function TestDetailPage() {
           : updatedResultData.studentId._id || updatedResultData.studentId.toString();
         
         if (studentId) {
-          studentTopicStatusApi.refreshCounts(studentId).catch((err: any) => {
-            console.error('Failed to refresh counts:', err);
-            // Don't show error to user - counts will update eventually
-          });
+          // Refresh counts and update UI
+          studentTopicStatusApi.refreshCounts(studentId)
+            .then((response) => {
+              // Update counts in UI immediately
+              if (response.data?.success && response.data.data) {
+                // Convert array to grouped format
+                const grouped: typeof subtopicCounts = {};
+                response.data.data.forEach((status: any) => {
+                  if (!grouped[status.subject]) grouped[status.subject] = {};
+                  if (!grouped[status.subject][status.topicName]) grouped[status.subject][status.topicName] = {};
+                  grouped[status.subject][status.topicName][status.subtopicName] = {
+                    negative: status.negativeCount || 0,
+                    unattempted: status.unattemptedCount || 0
+                  };
+                });
+                setSubtopicCounts(grouped);
+              }
+            })
+            .catch((err: any) => {
+              console.error('Failed to refresh counts:', err);
+              // Still show success - counts will update eventually
+            });
         }
       }
       
@@ -562,11 +634,14 @@ export default function TestDetailPage() {
                           <Button 
                             variant="ghost" 
                             size="sm"
-                            onClick={() => {
-                              // Fetch full result with populated data
-                              resultsApi.getById(result._id).then((res: any) => {
+                            onClick={async () => {
+                              try {
+                                // Fetch full result with populated data
+                                const res = await resultsApi.getById(result._id);
                                 setSelectedResult(res.data);
-                              });
+                              } catch (error: any) {
+                                showError('Failed to load student details: ' + (error.response?.data?.error || error.message));
+                              }
                             }}
                           >
                             View
@@ -653,6 +728,71 @@ export default function TestDetailPage() {
               </div>
 
               <div className="p-6 space-y-6">
+                {/* Subtopic Counts Summary */}
+                {selectedResult?.studentId && (
+                  <Card className="border-2 border-primary/20">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle>Subtopic Question Counts</CardTitle>
+                        {loadingCounts && (
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Total questions by subtopic across all tests for this student
+                      </p>
+                    </CardHeader>
+                    <CardContent>
+                      {Object.keys(subtopicCounts).length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {(['Physics', 'Chemistry', 'Mathematics'] as const).map((subject) => {
+                            const subjectCounts = subtopicCounts[subject] || {};
+                            let totalNegative = 0;
+                            let totalUnattempted = 0;
+                            
+                            Object.values(subjectCounts).forEach((topicCounts) => {
+                              Object.values(topicCounts).forEach((counts) => {
+                                totalNegative += counts.negative || 0;
+                                totalUnattempted += counts.unattempted || 0;
+                              });
+                            });
+                            
+                            if (totalNegative === 0 && totalUnattempted === 0) return null;
+                            
+                            return (
+                              <div key={subject} className="p-4 bg-muted rounded-lg border">
+                                <h4 className="font-semibold mb-2">{subject}</h4>
+                                <div className="space-y-1">
+                                  {totalNegative > 0 && (
+                                    <div className="flex items-center gap-2 text-sm">
+                                      <Badge variant="destructive" className="text-xs">
+                                        <XCircle className="h-3 w-3 mr-1" />
+                                        {totalNegative} Negative
+                                      </Badge>
+                                    </div>
+                                  )}
+                                  {totalUnattempted > 0 && (
+                                    <div className="flex items-center gap-2 text-sm">
+                                      <Badge variant="outline" className="text-xs border-yellow-500 text-yellow-700 dark:text-yellow-400">
+                                        <AlertCircle className="h-3 w-3 mr-1" />
+                                        {totalUnattempted} Unattempted
+                                      </Badge>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          {loadingCounts ? 'Loading counts...' : 'No question counts available yet'}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* Overall Performance */}
                 <Card className="border-2">
                   <CardHeader>
@@ -761,6 +901,7 @@ export default function TestDetailPage() {
                                     }
                                     return opts;
                                   })()}
+                                  subtopicCounts={subtopicCounts[subject.name] || {}}
                                   className="w-64"
                                 />
                                 <Button
