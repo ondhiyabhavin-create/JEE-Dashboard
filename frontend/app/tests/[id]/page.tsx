@@ -251,6 +251,20 @@ export default function TestDetailPage() {
     setFilteredResults(filtered);
   }, [search, allResults]);
 
+  // Debug: Log when selectedResult changes (must be before early returns)
+  useEffect(() => {
+    if (selectedResult) {
+      console.log('🔄 selectedResult updated:', {
+        physicsNegative: selectedResult.physics?.negativeQuestions,
+        physicsUnattempted: selectedResult.physics?.unattemptedQuestions,
+        chemistryNegative: selectedResult.chemistry?.negativeQuestions,
+        chemistryUnattempted: selectedResult.chemistry?.unattemptedQuestions,
+        mathsNegative: selectedResult.maths?.negativeQuestions,
+        mathsUnattempted: selectedResult.maths?.unattemptedQuestions,
+      });
+    }
+  }, [selectedResult]);
+
   const handleSaveRemarks = async () => {
     if (!selectedResult) return;
     setIsSaving(true);
@@ -520,20 +534,6 @@ export default function TestDetailPage() {
       </div>
     );
   }
-
-  // Debug: Log when selectedResult changes (must be before early returns)
-  useEffect(() => {
-    if (selectedResult) {
-      console.log('🔄 selectedResult updated:', {
-        physicsNegative: selectedResult.physics?.negativeQuestions,
-        physicsUnattempted: selectedResult.physics?.unattemptedQuestions,
-        chemistryNegative: selectedResult.chemistry?.negativeQuestions,
-        chemistryUnattempted: selectedResult.chemistry?.unattemptedQuestions,
-        mathsNegative: selectedResult.maths?.negativeQuestions,
-        mathsUnattempted: selectedResult.maths?.unattemptedQuestions,
-      });
-    }
-  }, [selectedResult]);
 
   if (!test) {
     return (
