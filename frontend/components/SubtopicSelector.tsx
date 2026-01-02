@@ -66,6 +66,7 @@ export default function SubtopicSelector({
   const selectedOption = options.find(opt => opt.subtopicName === value);
 
   const handleSelect = (subtopicName: string) => {
+    console.log('✅ SubtopicSelector: Selected subtopic:', subtopicName);
     onChange(subtopicName);
     setIsOpen(false);
     setSearchQuery('');

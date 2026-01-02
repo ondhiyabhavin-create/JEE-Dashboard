@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Award, Calendar, X, FileText, Edit2, Save, Trash2, Plus, XCircle, Search } from 'lucide-react';
+import { ArrowLeft, Award, Calendar, X, FileText, Edit2, Save, Trash2, Plus, XCircle, Search, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { testsApi, resultsApi, syllabusApi } from '@/lib/api';
 import SubtopicSelector from '@/components/SubtopicSelector';
@@ -14,6 +14,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { formatDate, formatPercentage } from '@/lib/utils';
 import CountUp from '@/components/CountUp';
+import { useToast } from '@/hooks/useToast';
+import { ToastContainer } from '@/components/ui/toast';
 
 export default function TestDetailPage() {
   const params = useParams();
@@ -35,8 +37,10 @@ export default function TestDetailPage() {
   const [isEditingRemarks, setIsEditingRemarks] = useState(false);
   const [remarks, setRemarks] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [savingButton, setSavingButton] = useState<string | null>(null); // Track which button is saving
   const [editingQuestion, setEditingQuestion] = useState<{ type: string; subject: string; index: number } | null>(null);
   const [questionData, setQuestionData] = useState({ questionNumber: '', subtopic: '' });
+  const { toasts, success, removeToast } = useToast();
   const [groupedSubtopics, setGroupedSubtopics] = useState<{
     Physics: Array<{ topicName: string; subtopicName: string; _id: string }>;
     Chemistry: Array<{ topicName: string; subtopicName: string; _id: string }>;
@@ -168,12 +172,28 @@ export default function TestDetailPage() {
   };
 
   const handleAddQuestion = async (type: 'unattempted' | 'negative', subject: string) => {
-    if (!selectedResult || !questionData.questionNumber || !questionData.subtopic) {
-      alert('Please enter both question number and subtopic');
+    console.log('🔍 handleAddQuestion called:', { type, subject, questionData });
+    
+    if (!selectedResult) {
+      alert('Please select a student result first');
+      return;
+    }
+    
+    if (!questionData.questionNumber || questionData.questionNumber.trim() === '') {
+      alert('Please enter a question number');
+      return;
+    }
+    
+    if (!questionData.subtopic || questionData.subtopic.trim() === '') {
+      alert('Please select a subtopic from the dropdown');
       return;
     }
 
+    // Create unique key for this button
+    const buttonKey = `${type}-${subject}`;
+    setSavingButton(buttonKey);
     setIsSaving(true);
+    
     try {
       const subjectKey = subject.toLowerCase() as 'physics' | 'chemistry' | 'maths';
       const currentData = selectedResult[subjectKey] || {};
@@ -197,11 +217,15 @@ export default function TestDetailPage() {
       setEditingQuestion(null);
       setQuestionData({ questionNumber: '', subtopic: '' });
       fetchData();
+      
+      // Show success notification
+      success('Question added successfully!');
     } catch (error: any) {
       console.error('Failed to add question:', error);
       alert('Failed to add question: ' + (error.response?.data?.error || error.message));
     } finally {
       setIsSaving(false);
+      setSavingButton(null);
     }
   };
 
@@ -563,16 +587,16 @@ export default function TestDetailPage() {
                                 <SubtopicSelector
                                   subject={subject.name as 'Physics' | 'Chemistry' | 'Mathematics'}
                                   value={questionData.subtopic}
-                                  onChange={(value) => setQuestionData({ ...questionData, subtopic: value })}
+                                  onChange={(value) => {
+                                    console.log('📝 Subtopic changed:', value);
+                                    setQuestionData({ ...questionData, subtopic: value });
+                                  }}
                                   options={(() => {
                                     const subjectKey = subject.name as keyof typeof groupedSubtopics;
                                     const opts = groupedSubtopics[subjectKey] || [];
-                                    console.log(`🔍 Rendering SubtopicSelector for ${subject.name}:`, {
-                                      subjectKey,
-                                      optionsCount: opts.length,
-                                      options: opts.slice(0, 3), // Show first 3
-                                      allKeys: Object.keys(groupedSubtopics)
-                                    });
+                                    if (opts.length === 0) {
+                                      console.warn(`⚠️ No subtopics found for ${subject.name}. Available subjects:`, Object.keys(groupedSubtopics));
+                                    }
                                     return opts;
                                   })()}
                                   className="w-64"
@@ -582,7 +606,11 @@ export default function TestDetailPage() {
                                   size="sm"
                                   disabled={isSaving}
                                 >
-                                  <Save className="h-4 w-4" />
+                                  {savingButton === `unattempted-${subject.name}` ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Save className="h-4 w-4" />
+                                  )}
                                 </Button>
                                 <Button
                                   onClick={() => {
@@ -655,16 +683,26 @@ export default function TestDetailPage() {
                                 <SubtopicSelector
                                   subject={subject.name as 'Physics' | 'Chemistry' | 'Mathematics'}
                                   value={questionData.subtopic}
-                                  onChange={(value) => setQuestionData({ ...questionData, subtopic: value })}
+                                  onChange={(value) => {
+                                    console.log('📝 Subtopic changed:', value);
+                                    setQuestionData({ ...questionData, subtopic: value });
+                                  }}
                                   options={(() => {
                                     const subjectKey = subject.name as keyof typeof groupedSubtopics;
                                     const opts = groupedSubtopics[subjectKey] || [];
-                                    console.log(`🔍 Rendering SubtopicSelector for ${subject.name}:`, {
+                                    console.log(`🔍 SubtopicSelector options for ${subject.name} (negative):`, {
                                       subjectKey,
                                       optionsCount: opts.length,
-                                      options: opts.slice(0, 3), // Show first 3
-                                      allKeys: Object.keys(groupedSubtopics)
+                                      availableKeys: Object.keys(groupedSubtopics),
+                                      groupedSubtopicsCounts: {
+                                        Physics: groupedSubtopics.Physics?.length || 0,
+                                        Chemistry: groupedSubtopics.Chemistry?.length || 0,
+                                        Mathematics: groupedSubtopics.Mathematics?.length || 0
+                                      }
                                     });
+                                    if (opts.length === 0) {
+                                      console.warn(`⚠️ No subtopics found for ${subject.name}. Available subjects:`, Object.keys(groupedSubtopics));
+                                    }
                                     return opts;
                                   })()}
                                   className="w-64"
@@ -674,7 +712,11 @@ export default function TestDetailPage() {
                                   size="sm"
                                   disabled={isSaving}
                                 >
-                                  <Save className="h-4 w-4" />
+                                  {savingButton === `negative-${subject.name}` ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Save className="h-4 w-4" />
+                                  )}
                                 </Button>
                                 <Button
                                   onClick={() => {
@@ -788,6 +830,9 @@ export default function TestDetailPage() {
           </div>
         </AnimatePresence>
       )}
+      
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onClose={removeToast} />
     </>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Award, CheckCircle2, XCircle, Minus, FileText, Edit2, Save, Trash2, Plus } from 'lucide-react';
+import { X, Award, CheckCircle2, XCircle, Minus, FileText, Edit2, Save, Trash2, Plus, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,8 @@ import CountUp from '@/components/CountUp';
 import { formatDate, formatPercentage } from '@/lib/utils';
 import { resultsApi, syllabusApi } from '@/lib/api';
 import SubtopicSelector from '@/components/SubtopicSelector';
+import { useToast } from '@/hooks/useToast';
+import { ToastContainer } from '@/components/ui/toast';
 
 interface TestDetailModalPremiumProps {
   result: any;
@@ -24,9 +26,11 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
   const [isEditingRemarks, setIsEditingRemarks] = useState(false);
   const [remarks, setRemarks] = useState(result.remarks || '');
   const [isSaving, setIsSaving] = useState(false);
+  const [savingButton, setSavingButton] = useState<string | null>(null);
   const [editingQuestion, setEditingQuestion] = useState<{ type: string; subject: string; index: number } | null>(null);
   const [questionData, setQuestionData] = useState({ questionNumber: '', subtopic: '' });
   const [currentResult, setCurrentResult] = useState(result);
+  const { toasts, success, removeToast } = useToast();
   const [groupedSubtopics, setGroupedSubtopics] = useState<{
     Physics: Array<{ topicName: string; subtopicName: string; _id: string }>;
     Chemistry: Array<{ topicName: string; subtopicName: string; _id: string }>;
@@ -83,12 +87,21 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
   };
 
   const handleAddQuestion = async (type: 'unattempted' | 'negative', subject: string) => {
-    if (!questionData.questionNumber || !questionData.subtopic) {
-      alert('Please enter both question number and subtopic');
+    if (!questionData.questionNumber || questionData.questionNumber.trim() === '') {
+      alert('Please enter a question number');
+      return;
+    }
+    
+    if (!questionData.subtopic || questionData.subtopic.trim() === '') {
+      alert('Please select a subtopic from the dropdown');
       return;
     }
 
+    // Create unique key for this button
+    const buttonKey = `${type}-${subject}`;
+    setSavingButton(buttonKey);
     setIsSaving(true);
+    
     try {
       const subjectKey = subject.toLowerCase() as 'physics' | 'chemistry' | 'maths';
       const currentData = currentResult[subjectKey] || {};
@@ -112,12 +125,17 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
       setCurrentResult(updatedResult.data);
       setEditingQuestion(null);
       setQuestionData({ questionNumber: '', subtopic: '' });
+      
+      // Show success notification
+      success('Question added successfully!');
+      
       if (onUpdate) onUpdate();
     } catch (error: any) {
       console.error('Failed to add question:', error);
       alert('Failed to add question: ' + (error.response?.data?.error || error.message));
     } finally {
       setIsSaving(false);
+      setSavingButton(null);
     }
   };
 
@@ -302,7 +320,11 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
                               size="sm"
                               disabled={isSaving}
                             >
-                              <Save className="h-4 w-4" />
+                              {savingButton === `unattempted-${subject.name}` ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Save className="h-4 w-4" />
+                              )}
                             </Button>
                             <Button
                               onClick={() => {
@@ -384,7 +406,11 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
                               size="sm"
                               disabled={isSaving}
                             >
-                              <Save className="h-4 w-4" />
+                              {savingButton === `negative-${subject.name}` ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Save className="h-4 w-4" />
+                              )}
                             </Button>
                             <Button
                               onClick={() => {
@@ -496,6 +522,9 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
           </div>
         </motion.div>
       </div>
+      
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onClose={removeToast} />
     </AnimatePresence>
   );
 }
