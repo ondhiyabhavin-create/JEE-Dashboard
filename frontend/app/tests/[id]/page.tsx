@@ -144,7 +144,10 @@ export default function TestDetailPage() {
 
   const fetchData = async (signal?: AbortSignal, pageNum: number = 1) => {
     try {
-      setLoading(true);
+      // Only show loading on initial load, not on subsequent fetches
+      if (pageNum === 1 && !test) {
+        setLoading(true);
+      }
       // Fetch test and page of results
       const [testRes, resultsRes] = await Promise.all([
         testsApi.getById(testId),
@@ -178,7 +181,7 @@ export default function TestDetailPage() {
   // Fetch page of results
   const fetchPage = useCallback(async (pageNum: number) => {
     try {
-      setLoading(true);
+      // Don't show full page loader for pagination - just update the data
       const resultsRes = await resultsApi.getByTest(testId, pageNum, 50);
       setResults(resultsRes.data.results);
       setPagination(resultsRes.data.pagination);
@@ -186,8 +189,6 @@ export default function TestDetailPage() {
     } catch (err: any) {
       console.error('Failed to fetch page:', err);
       showError('Failed to load results. Please try again.');
-    } finally {
-      setLoading(false);
     }
   }, [testId, showError]);
   
@@ -309,8 +310,6 @@ export default function TestDetailPage() {
       );
       
       if (isDuplicate) {
-        setSavingButton(null);
-        setIsSaving(false);
         showWarning('This question is already added');
         return;
       }
@@ -334,35 +333,37 @@ export default function TestDetailPage() {
       const response = await resultsApi.update(selectedResult._id, updateData);
       const updatedResultData = response.data;
       
-      // Update selected result immediately
-      setSelectedResult(JSON.parse(JSON.stringify(updatedResultData)));
+      // Update selected result immediately - use a fresh object to trigger React re-render
+      const freshResult = JSON.parse(JSON.stringify(updatedResultData));
+      setSelectedResult(freshResult);
       
       // Update the result in the results list
       setResults(prevResults => 
         prevResults.map(r => 
-          r._id === selectedResult._id ? updatedResultData : r
+          r._id === selectedResult._id ? freshResult : r
         )
       );
       setAllResults(prevAllResults => 
         prevAllResults.map(r => 
-          r._id === selectedResult._id ? updatedResultData : r
+          r._id === selectedResult._id ? freshResult : r
         )
       );
+      
+      // Show success notification IMMEDIATELY (before resetting form)
+      success('Question added successfully!');
       
       // Reset form
       setEditingQuestion(null);
       setQuestionData({ questionNumber: '', subtopic: '' });
       
-      // Show success notification
-      success('Question added successfully!');
-      
-      // Refresh counts in background
+      // Refresh counts in background (don't wait for it)
       if (updatedResultData.studentId) {
         const studentId = typeof updatedResultData.studentId === 'string' 
           ? updatedResultData.studentId 
           : updatedResultData.studentId._id || updatedResultData.studentId.toString();
         
         if (studentId) {
+          // Run in background, don't await
           studentTopicStatusApi.refreshCounts(studentId)
             .then((countResponse) => {
               if (countResponse.data?.success && countResponse.data.data) {
@@ -379,12 +380,11 @@ export default function TestDetailPage() {
               }
             })
             .catch((err: any) => {
-              console.error('Failed to refresh counts:', err);
+              // Silent fail - counts will update eventually
             });
         }
       }
     } catch (error: any) {
-      console.error('Failed to add question:', error);
       showError('Failed to add question: ' + (error.response?.data?.error || error.message));
     } finally {
       setIsSaving(false);
