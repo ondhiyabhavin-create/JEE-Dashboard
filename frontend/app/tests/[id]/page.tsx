@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Award, Calendar, X, FileText, Edit2, Save, Trash2, Plus, XCircle, Search, Loader2, AlertCircle } from 'lucide-react';
@@ -254,14 +254,15 @@ export default function TestDetailPage() {
   // Debug: Log when selectedResult changes (must be before early returns)
   useEffect(() => {
     if (selectedResult) {
-      console.log('🔄 selectedResult updated:', {
-        physicsNegative: selectedResult.physics?.negativeQuestions,
-        physicsUnattempted: selectedResult.physics?.unattemptedQuestions,
-        chemistryNegative: selectedResult.chemistry?.negativeQuestions,
-        chemistryUnattempted: selectedResult.chemistry?.unattemptedQuestions,
-        mathsNegative: selectedResult.maths?.negativeQuestions,
-        mathsUnattempted: selectedResult.maths?.unattemptedQuestions,
-      });
+      console.log('🔄 selectedResult STATE UPDATED:');
+      console.log('   Physics negativeQuestions:', selectedResult.physics?.negativeQuestions);
+      console.log('   Physics negativeQuestions length:', selectedResult.physics?.negativeQuestions?.length);
+      console.log('   Physics unattemptedQuestions:', selectedResult.physics?.unattemptedQuestions);
+      console.log('   Chemistry negativeQuestions:', selectedResult.chemistry?.negativeQuestions);
+      console.log('   Chemistry unattemptedQuestions:', selectedResult.chemistry?.unattemptedQuestions);
+      console.log('   Maths negativeQuestions:', selectedResult.maths?.negativeQuestions);
+      console.log('   Maths unattemptedQuestions:', selectedResult.maths?.unattemptedQuestions);
+      console.log('   Full selectedResult:', JSON.stringify(selectedResult, null, 2));
     }
   }, [selectedResult]);
 
@@ -372,6 +373,8 @@ export default function TestDetailPage() {
       
       console.log('✅ Update response:', response);
       console.log('✅ Update response.data:', response.data);
+      console.log('✅ Update response.data.physics:', response.data?.physics);
+      console.log('✅ Update response.data.physics.negativeQuestions:', response.data?.physics?.negativeQuestions);
       
       // Handle response - axios wraps it, so response.data is the actual result
       const updatedResultData = response.data;
@@ -383,9 +386,14 @@ export default function TestDetailPage() {
       
       console.log('✅ Updated result data:', updatedResultData);
       console.log('✅ Physics negativeQuestions:', updatedResultData.physics?.negativeQuestions);
+      console.log('✅ Physics negativeQuestions length:', updatedResultData.physics?.negativeQuestions?.length);
       
-      // Update selected result - force a new object reference for React to detect change
-      setSelectedResult({ ...updatedResultData });
+      // Deep clone to ensure React detects the change - including nested arrays
+      const clonedData = JSON.parse(JSON.stringify(updatedResultData));
+      console.log('✅ Cloned data physics.negativeQuestions:', clonedData.physics?.negativeQuestions);
+      
+      // Update selected result - use deep clone to force React to detect nested changes
+      setSelectedResult(clonedData);
       
       // Update the result in the results list without refetching all data
       setResults(prevResults => 
@@ -565,11 +573,28 @@ export default function TestDetailPage() {
   }
 
   // Memoize subjects to ensure it updates when selectedResult changes
-  const subjects = [
-    { name: 'Physics', key: 'physics', data: selectedResult?.physics, color: 'text-blue-600', bgColor: 'bg-blue-50 dark:bg-blue-950/20', borderColor: 'border-blue-200 dark:border-blue-800' },
-    { name: 'Chemistry', key: 'chemistry', data: selectedResult?.chemistry, color: 'text-green-600', bgColor: 'bg-green-50 dark:bg-green-950/20', borderColor: 'border-green-200 dark:border-green-800' },
-    { name: 'Mathematics', key: 'maths', data: selectedResult?.maths, color: 'text-purple-600', bgColor: 'bg-purple-50 dark:bg-purple-950/20', borderColor: 'border-purple-200 dark:border-purple-800' },
-  ];
+  const subjects = useMemo(() => {
+    const subs = [
+      { name: 'Physics', key: 'physics', data: selectedResult?.physics, color: 'text-blue-600', bgColor: 'bg-blue-50 dark:bg-blue-950/20', borderColor: 'border-blue-200 dark:border-blue-800' },
+      { name: 'Chemistry', key: 'chemistry', data: selectedResult?.chemistry, color: 'text-green-600', bgColor: 'bg-green-50 dark:bg-green-950/20', borderColor: 'border-green-200 dark:border-green-800' },
+      { name: 'Mathematics', key: 'maths', data: selectedResult?.maths, color: 'text-purple-600', bgColor: 'bg-purple-50 dark:bg-purple-950/20', borderColor: 'border-purple-200 dark:border-purple-800' },
+    ];
+    
+    // Debug log
+    if (selectedResult) {
+      console.log('🎨 SUBJECTS MEMOIZED:');
+      subs.forEach(subject => {
+        console.log(`   ${subject.name}:`, {
+          negativeQuestions: subject.data?.negativeQuestions,
+          negativeQuestionsLength: subject.data?.negativeQuestions?.length,
+          unattemptedQuestions: subject.data?.unattemptedQuestions,
+          unattemptedQuestionsLength: subject.data?.unattemptedQuestions?.length,
+        });
+      });
+    }
+    
+    return subs;
+  }, [selectedResult]);
 
   return (
     <>
@@ -1086,9 +1111,12 @@ export default function TestDetailPage() {
                               </Button>
                             )}
                           </div>
-                          {subjectData.negativeQuestions?.length > 0 ? (
-                            <div className="space-y-2">
-                              {subjectData.negativeQuestions.map((q: any, idx: number) => (
+                          {(() => {
+                            const negativeQs = subjectData.negativeQuestions || [];
+                            console.log(`🎯 Rendering ${subject.name} negativeQuestions:`, negativeQs, 'Length:', negativeQs.length);
+                            return negativeQs.length > 0 ? (
+                              <div className="space-y-2">
+                                {negativeQs.map((q: any, idx: number) => (
                                 <div
                                   key={idx}
                                   className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-lg border border-red-200 dark:border-red-800"
@@ -1107,12 +1135,13 @@ export default function TestDetailPage() {
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground text-center py-4">No negative questions recorded</p>
-                          )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-muted-foreground text-center py-4">No negative questions recorded</p>
+                            );
+                          })()}
                         </div>
                       </CardContent>
                     </Card>
