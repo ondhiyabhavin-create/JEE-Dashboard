@@ -33,6 +33,11 @@ export default function SubtopicSelector({
   const [searchQuery, setSearchQuery] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Debug logging
+  useEffect(() => {
+    console.log(`SubtopicSelector for ${subject}:`, options.length, 'options', options);
+  }, [subject, options]);
+
   // Filter options based on search query
   const filteredOptions = options.filter(option =>
     option.subtopicName.toLowerCase().includes(searchQuery.toLowerCase()) ||

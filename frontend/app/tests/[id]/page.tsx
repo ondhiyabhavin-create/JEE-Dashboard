@@ -52,11 +52,32 @@ export default function TestDetailPage() {
   const fetchSubtopics = async () => {
     try {
       const response = await syllabusApi.getGroupedSubtopics();
-      if (response.data.success) {
-        setGroupedSubtopics(response.data.data);
+      console.log('Subtopics API response:', response);
+      console.log('Response data:', response.data);
+      
+      // Handle different response structures
+      let data = null;
+      if (response.data) {
+        if (response.data.success && response.data.data) {
+          data = response.data.data;
+        } else if (response.data.Physics || response.data.Chemistry || response.data.Mathematics) {
+          // Direct data structure
+          data = response.data;
+        }
       }
-    } catch (error) {
+      
+      if (data) {
+        console.log('Setting grouped subtopics:', data);
+        console.log('Physics count:', data.Physics?.length || 0);
+        console.log('Chemistry count:', data.Chemistry?.length || 0);
+        console.log('Mathematics count:', data.Mathematics?.length || 0);
+        setGroupedSubtopics(data);
+      } else {
+        console.error('No valid data in API response:', response.data);
+      }
+    } catch (error: any) {
       console.error('Failed to fetch subtopics:', error);
+      console.error('Error details:', error.response?.data || error.message);
     }
   };
 
