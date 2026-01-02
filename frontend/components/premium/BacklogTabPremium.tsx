@@ -35,6 +35,7 @@ interface StudentTopicStatus {
   theoryCompleted?: boolean;
   solvingCompleted?: boolean;
   negativeCount: number;
+  unattemptedCount?: number;
 }
 
 interface BacklogTabPremiumProps {
@@ -471,6 +472,8 @@ export default function BacklogTabPremium({ studentId }: BacklogTabPremiumProps)
                           const theoryCompleted = status?.theoryCompleted || false;
                           const solvingCompleted = status?.solvingCompleted || false;
                           const negativeCount = status?.negativeCount || 0;
+                          const unattemptedCount = status?.unattemptedCount || 0;
+                          const totalCount = negativeCount + unattemptedCount;
                           const updateKey = `${subjectItem.subject}-${topic.name}-${subtopic}`;
                           const isUpdating = updating === updateKey;
 
@@ -483,7 +486,25 @@ export default function BacklogTabPremium({ studentId }: BacklogTabPremiumProps)
                               className="grid grid-cols-12 gap-2 p-4 hover:bg-slate-50 transition-all duration-200 items-center border-b border-slate-100 last:border-b-0"
                     >
                       {/* Subtopic Name */}
-                      <div className="col-span-3 font-medium">{subtopic}</div>
+                      <div className="col-span-3 font-medium">
+                        <div className="flex items-center gap-2">
+                          <span>{subtopic}</span>
+                          {totalCount > 0 && (
+                            <div className="flex items-center gap-1">
+                              {negativeCount > 0 && (
+                                <Badge variant="destructive" className="text-xs px-1.5 py-0.5">
+                                  {negativeCount}N
+                                </Badge>
+                              )}
+                              {unattemptedCount > 0 && (
+                                <Badge variant="outline" className="text-xs px-1.5 py-0.5 border-yellow-500 text-yellow-700 dark:text-yellow-400">
+                                  {unattemptedCount}U
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
 
                               {/* Theory Completed */}
                               <div className="col-span-2 flex justify-center">

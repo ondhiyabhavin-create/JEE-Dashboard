@@ -134,6 +134,8 @@ export default function StudentTopicStatusTab({ studentId }: StudentTopicStatusT
                           const status = getStatusForSubtopic(topic.subject, topic.name, subtopic.name);
                           const currentStatus = status?.status || null;
                           const negativeCount = status?.negativeCount || 0;
+                          const unattemptedCount = status?.unattemptedCount || 0;
+                          const totalCount = negativeCount + unattemptedCount;
 
                           return (
                             <div
@@ -143,10 +145,19 @@ export default function StudentTopicStatusTab({ studentId }: StudentTopicStatusT
                               <div className="flex-1">
                                 <div className="flex items-center gap-3">
                                   <span className="text-sm font-medium">{subtopic.name}</span>
-                                  {negativeCount > 0 && (
-                                    <Badge variant="destructive" className="text-xs">
-                                      {negativeCount} negative
-                                    </Badge>
+                                  {totalCount > 0 && (
+                                    <div className="flex items-center gap-2">
+                                      {negativeCount > 0 && (
+                                        <Badge variant="destructive" className="text-xs">
+                                          {negativeCount} negative
+                                        </Badge>
+                                      )}
+                                      {unattemptedCount > 0 && (
+                                        <Badge variant="outline" className="text-xs border-yellow-500 text-yellow-700 dark:text-yellow-400">
+                                          {unattemptedCount} unattempted
+                                        </Badge>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
                               </div>

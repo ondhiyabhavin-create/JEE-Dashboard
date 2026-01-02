@@ -5,7 +5,8 @@ import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Award, Calendar, X, FileText, Edit2, Save, Trash2, Plus, XCircle, Search } from 'lucide-react';
 import Link from 'next/link';
-import { testsApi, resultsApi } from '@/lib/api';
+import { testsApi, resultsApi, topicsApi } from '@/lib/api';
+import SubtopicSelector from '@/components/SubtopicSelector';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -36,11 +37,28 @@ export default function TestDetailPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<{ type: string; subject: string; index: number } | null>(null);
   const [questionData, setQuestionData] = useState({ questionNumber: '', subtopic: '' });
+  const [groupedSubtopics, setGroupedSubtopics] = useState<{
+    Physics: Array<{ topicName: string; subtopicName: string; _id: string }>;
+    Chemistry: Array<{ topicName: string; subtopicName: string; _id: string }>;
+    Mathematics: Array<{ topicName: string; subtopicName: string; _id: string }>;
+  }>({ Physics: [], Chemistry: [], Mathematics: [] });
 
   useEffect(() => {
     fetchData();
+    fetchSubtopics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [testId]);
+
+  const fetchSubtopics = async () => {
+    try {
+      const response = await topicsApi.getGroupedSubtopics();
+      if (response.data.success) {
+        setGroupedSubtopics(response.data.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch subtopics:', error);
+    }
+  };
 
   useEffect(() => {
     if (selectedResult) {
@@ -512,11 +530,12 @@ export default function TestDetailPage() {
                                   onChange={(e) => setQuestionData({ ...questionData, questionNumber: e.target.value })}
                                   className="w-24"
                                 />
-                                <Input
-                                  placeholder="Subtopic Name"
+                                <SubtopicSelector
+                                  subject={subject.name as 'Physics' | 'Chemistry' | 'Mathematics'}
                                   value={questionData.subtopic}
-                                  onChange={(e) => setQuestionData({ ...questionData, subtopic: e.target.value })}
-                                  className="w-48"
+                                  onChange={(value) => setQuestionData({ ...questionData, subtopic: value })}
+                                  options={groupedSubtopics[subject.name as keyof typeof groupedSubtopics] || []}
+                                  className="w-64"
                                 />
                                 <Button
                                   onClick={() => handleAddQuestion('unattempted', subject.name)}
@@ -593,11 +612,12 @@ export default function TestDetailPage() {
                                   onChange={(e) => setQuestionData({ ...questionData, questionNumber: e.target.value })}
                                   className="w-24"
                                 />
-                                <Input
-                                  placeholder="Subtopic Name"
+                                <SubtopicSelector
+                                  subject={subject.name as 'Physics' | 'Chemistry' | 'Mathematics'}
                                   value={questionData.subtopic}
-                                  onChange={(e) => setQuestionData({ ...questionData, subtopic: e.target.value })}
-                                  className="w-48"
+                                  onChange={(value) => setQuestionData({ ...questionData, subtopic: value })}
+                                  options={groupedSubtopics[subject.name as keyof typeof groupedSubtopics] || []}
+                                  className="w-64"
                                 />
                                 <Button
                                   onClick={() => handleAddQuestion('negative', subject.name)}

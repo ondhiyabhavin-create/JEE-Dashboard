@@ -194,6 +194,7 @@ api.interceptors.response.use(
 export const topicsApi = {
   getAll: () => api.get('/topics'),
   getBySubject: (subject: string) => api.get(`/topics/subject/${subject}`),
+  getGroupedSubtopics: () => api.get('/topics/subtopics/grouped'),
   create: (data: { name: string; subject: string }) => api.post('/topics', data),
   addSubtopic: (topicId: string, name: string) => api.post(`/topics/${topicId}/subtopics`, { name }),
   updateSubtopic: (topicId: string, subtopicId: string, name: string) => api.put(`/topics/${topicId}/subtopics/${subtopicId}`, { name }),
