@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, FileText, Users, TrendingUp, MoreVertical, Trash2, CheckSquare, Square } from 'lucide-react';
+import { Calendar, FileText, Users, TrendingUp, MoreVertical, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { testsApi, resultsApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,9 +23,7 @@ export default function TestsPage() {
     pages: 0,
   });
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [selectedTests, setSelectedTests] = useState<Set<string>>(new Set());
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [showFinalDeleteAllConfirm, setShowFinalDeleteAllConfirm] = useState(false);
   const [testToDelete, setTestToDelete] = useState<string | null>(null);
@@ -65,7 +63,6 @@ export default function TestsPage() {
       );
       setTests(testsWithStats);
       setPagination(paginationData);
-      setSelectedTests(new Set()); // Clear selection when page changes
     } catch (err: any) {
       console.error('Failed to fetch tests:', err);
       showError('Failed to fetch tests');
@@ -99,32 +96,6 @@ export default function TestsPage() {
     }
   };
 
-  const handleBatchDelete = () => {
-    if (selectedTests.size === 0) {
-      showError('Please select at least one test to delete');
-      return;
-    }
-    setShowBatchDeleteConfirm(true);
-    setOpenMenuId(null);
-  };
-
-  const confirmBatchDelete = async () => {
-    if (selectedTests.size === 0) return;
-    
-    try {
-      setDeleting(true);
-      await testsApi.batchDelete(Array.from(selectedTests));
-      showSuccess(`${selectedTests.size} test(s) deleted successfully`);
-      setShowBatchDeleteConfirm(false);
-      setSelectedTests(new Set());
-      fetchTests();
-    } catch (err: any) {
-      console.error('Failed to delete tests:', err);
-      showError(err.response?.data?.error || 'Failed to delete tests');
-    } finally {
-      setDeleting(false);
-    }
-  };
 
   const handleDeleteAll = async () => {
     try {
@@ -141,23 +112,6 @@ export default function TestsPage() {
     }
   };
 
-  const toggleTestSelection = (testId: string) => {
-    const newSelected = new Set(selectedTests);
-    if (newSelected.has(testId)) {
-      newSelected.delete(testId);
-    } else {
-      newSelected.add(testId);
-    }
-    setSelectedTests(newSelected);
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedTests.size === tests.length) {
-      setSelectedTests(new Set());
-    } else {
-      setSelectedTests(new Set(tests.map((t) => t._id)));
-    }
-  };
 
   if (loading) {
     return (
@@ -186,17 +140,6 @@ export default function TestsPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {selectedTests.size > 0 && (
-              <Button
-                variant="destructive"
-                onClick={handleBatchDelete}
-                disabled={deleting}
-                className="flex items-center gap-2"
-              >
-                <Trash2 className="h-4 w-4" />
-                Delete Selected ({selectedTests.size})
-              </Button>
-            )}
             <Button
               variant="destructive"
               onClick={() => setShowDeleteAllConfirm(true)}
@@ -209,34 +152,6 @@ export default function TestsPage() {
           </div>
         </motion.div>
 
-        {/* Selection Controls */}
-        {tests.length > 0 && (
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={toggleSelectAll}
-                  className="flex items-center gap-2"
-                >
-                  {selectedTests.size === tests.length ? (
-                    <CheckSquare className="h-4 w-4" />
-                  ) : (
-                    <Square className="h-4 w-4" />
-                  )}
-                  {selectedTests.size === tests.length ? 'Deselect All' : 'Select All'}
-                </Button>
-                {selectedTests.size > 0 && (
-                  <span className="text-sm text-muted-foreground">
-                    {selectedTests.size} test{selectedTests.size !== 1 ? 's' : ''} selected
-                  </span>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {tests.map((test, index) => (
             <motion.div
@@ -246,23 +161,6 @@ export default function TestsPage() {
               transition={{ delay: index * 0.05 }}
             >
               <Card className="h-full hover:shadow-lg transition-all duration-200 hover:-translate-y-1 relative">
-                {/* Checkbox for batch selection */}
-                <div className="absolute top-4 left-4 z-10">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleTestSelection(test._id);
-                    }}
-                    className="p-1 hover:bg-accent rounded"
-                  >
-                    {selectedTests.has(test._id) ? (
-                      <CheckSquare className="h-5 w-5 text-primary" />
-                    ) : (
-                      <Square className="h-5 w-5 text-muted-foreground" />
-                    )}
-                  </button>
-                </div>
-
                 {/* Three dots menu */}
                 <div className="absolute top-4 right-4 z-10">
                   <div className="relative">
@@ -375,18 +273,6 @@ export default function TestsPage() {
           cancelText="Cancel"
           variant="destructive"
           onConfirm={confirmDeleteTest}
-        />
-
-        {/* Batch Delete Confirmation Dialog */}
-        <ConfirmDialog
-          open={showBatchDeleteConfirm}
-          onOpenChange={setShowBatchDeleteConfirm}
-          title="Delete Selected Tests"
-          message={`Are you sure you want to delete ${selectedTests.size} selected test(s)? This will permanently delete:\n\n• All selected test records\n• All test results and scores for these tests\n\nThis action cannot be undone.`}
-          confirmText={deleting ? "Deleting..." : "Delete Selected"}
-          cancelText="Cancel"
-          variant="destructive"
-          onConfirm={confirmBatchDelete}
         />
 
         {/* Delete All - First Confirmation */}
