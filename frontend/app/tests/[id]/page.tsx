@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Award, Calendar, X, FileText, Edit2, Save, Trash2, Plus, XCircle, Search, Loader2, AlertCircle } from 'lucide-react';
@@ -126,17 +126,7 @@ export default function TestDetailPage() {
     }
   };
 
-  useEffect(() => {
-    if (selectedResult) {
-      setRemarks(selectedResult.remarks || '');
-      // Fetch subtopic counts for this student
-      fetchSubtopicCounts();
-    } else {
-      setSubtopicCounts({});
-    }
-  }, [selectedResult]);
-
-  const fetchSubtopicCounts = async () => {
+  const fetchSubtopicCounts = useCallback(async () => {
     if (!selectedResult?.studentId) return;
     
     try {
@@ -155,7 +145,17 @@ export default function TestDetailPage() {
     } finally {
       setLoadingCounts(false);
     }
-  };
+  }, [selectedResult?.studentId]);
+
+  useEffect(() => {
+    if (selectedResult) {
+      setRemarks(selectedResult.remarks || '');
+      // Fetch subtopic counts for this student
+      fetchSubtopicCounts();
+    } else {
+      setSubtopicCounts({});
+    }
+  }, [selectedResult, fetchSubtopicCounts]);
 
   const fetchData = async (signal?: AbortSignal, pageNum: number = 1) => {
     try {
@@ -191,7 +191,7 @@ export default function TestDetailPage() {
   };
   
   // Fetch page of results
-  const fetchPage = async (pageNum: number) => {
+  const fetchPage = useCallback(async (pageNum: number) => {
     try {
       setLoading(true);
       const resultsRes = await resultsApi.getByTest(testId, pageNum, 50);
@@ -204,10 +204,10 @@ export default function TestDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [testId, showError]);
   
   // Fetch all results for search (only when needed)
-  const fetchAllResultsForSearch = async (signal?: AbortSignal) => {
+  const fetchAllResultsForSearch = useCallback(async (signal?: AbortSignal) => {
     try {
       const resultsRes = await resultsApi.getByTest(testId, 1, 10000);
       if (signal?.aborted) return;
@@ -216,7 +216,7 @@ export default function TestDetailPage() {
       if (err.name === 'AbortError') return;
       console.error('Failed to fetch all results for search:', err);
     }
-  };
+  }, [testId]);
 
   // Fetch all results when search is used (lazy loading)
   useEffect(() => {
@@ -224,7 +224,7 @@ export default function TestDetailPage() {
       // Only fetch all if we have less than 100 results and user is searching
       fetchAllResultsForSearch();
     }
-  }, [search]);
+  }, [search, allResults.length, fetchAllResultsForSearch]);
   
   // Update paginated results when page changes (only when not searching)
   useEffect(() => {
@@ -232,7 +232,7 @@ export default function TestDetailPage() {
       // Fetch new page from server when not searching and page > 1
       fetchPage(page);
     }
-  }, [page, search]);
+  }, [page, search, fetchPage]);
 
   // Filter results based on search query
   useEffect(() => {
@@ -521,6 +521,20 @@ export default function TestDetailPage() {
     );
   }
 
+  // Debug: Log when selectedResult changes (must be before early returns)
+  useEffect(() => {
+    if (selectedResult) {
+      console.log('🔄 selectedResult updated:', {
+        physicsNegative: selectedResult.physics?.negativeQuestions,
+        physicsUnattempted: selectedResult.physics?.unattemptedQuestions,
+        chemistryNegative: selectedResult.chemistry?.negativeQuestions,
+        chemistryUnattempted: selectedResult.chemistry?.unattemptedQuestions,
+        mathsNegative: selectedResult.maths?.negativeQuestions,
+        mathsUnattempted: selectedResult.maths?.unattemptedQuestions,
+      });
+    }
+  }, [selectedResult]);
+
   if (!test) {
     return (
       <div className="min-h-screen p-6 md:p-8 flex items-center justify-center">
@@ -545,20 +559,6 @@ export default function TestDetailPage() {
     { name: 'Chemistry', key: 'chemistry', data: selectedResult?.chemistry, color: 'text-green-600', bgColor: 'bg-green-50 dark:bg-green-950/20', borderColor: 'border-green-200 dark:border-green-800' },
     { name: 'Mathematics', key: 'maths', data: selectedResult?.maths, color: 'text-purple-600', bgColor: 'bg-purple-50 dark:bg-purple-950/20', borderColor: 'border-purple-200 dark:border-purple-800' },
   ];
-
-  // Debug: Log when selectedResult changes
-  useEffect(() => {
-    if (selectedResult) {
-      console.log('🔄 selectedResult updated:', {
-        physicsNegative: selectedResult.physics?.negativeQuestions,
-        physicsUnattempted: selectedResult.physics?.unattemptedQuestions,
-        chemistryNegative: selectedResult.chemistry?.negativeQuestions,
-        chemistryUnattempted: selectedResult.chemistry?.unattemptedQuestions,
-        mathsNegative: selectedResult.maths?.negativeQuestions,
-        mathsUnattempted: selectedResult.maths?.unattemptedQuestions,
-      });
-    }
-  }, [selectedResult]);
 
   return (
     <>
