@@ -67,6 +67,9 @@ export default function TestDetailPage() {
     Chemistry: { negative: [], unattempted: [] },
     Mathematics: { negative: [], unattempted: [] }
   });
+  
+  // Force re-render key to ensure UI updates
+  const [questionsUpdateKey, setQuestionsUpdateKey] = useState(0);
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -142,14 +145,16 @@ export default function TestDetailPage() {
   }, [selectedResult?.studentId]);
 
   // Load questions for the selected result from simple table
-  const loadQuestionsForResult = async () => {
-    if (!selectedResult?._id) return;
+  const loadQuestionsForResult = async (resultId?: string) => {
+    const idToUse = resultId || selectedResult?._id;
+    if (!idToUse) return;
     
     try {
-      const response = await questionRecordsApi.getByResult(selectedResult._id);
+      const response = await questionRecordsApi.getByResult(idToUse);
+      console.log('📥 Load questions response:', response.data);
+      
       if (response.data?.success && response.data.data) {
-        // Create a new object reference to ensure React detects the change
-        setResultQuestions({
+        const newQuestions = {
           Physics: { 
             negative: [...(response.data.data.Physics?.negative || [])], 
             unattempted: [...(response.data.data.Physics?.unattempted || [])] 
@@ -162,10 +167,24 @@ export default function TestDetailPage() {
             negative: [...(response.data.data.Mathematics?.negative || [])], 
             unattempted: [...(response.data.data.Mathematics?.unattempted || [])] 
           }
+        };
+        
+        console.log('📝 Setting new questions:', newQuestions);
+        // Create a new object reference to ensure React detects the change
+        setResultQuestions(newQuestions);
+        // Force re-render by updating key
+        setQuestionsUpdateKey(prev => prev + 1);
+      } else {
+        console.warn('⚠️ Unexpected response structure:', response.data);
+        // Reset to empty if structure is unexpected
+        setResultQuestions({
+          Physics: { negative: [], unattempted: [] },
+          Chemistry: { negative: [], unattempted: [] },
+          Mathematics: { negative: [], unattempted: [] }
         });
       }
     } catch (error: any) {
-      console.error('Failed to load questions:', error);
+      console.error('❌ Failed to load questions:', error);
       // Reset on error
       setResultQuestions({
         Physics: { negative: [], unattempted: [] },
@@ -183,6 +202,8 @@ export default function TestDetailPage() {
       setRemarks(selectedResult.remarks || '');
       // Load questions from simple table
       loadQuestionsForResult();
+      // Reset update key when result changes
+      setQuestionsUpdateKey(0);
       // Only fetch counts once when modal opens for a new result
       const resultId = selectedResult._id;
       if (resultId !== countsFetchedFor) {
@@ -197,6 +218,7 @@ export default function TestDetailPage() {
         Chemistry: { negative: [], unattempted: [] },
         Mathematics: { negative: [], unattempted: [] }
       });
+      setQuestionsUpdateKey(0);
     }
   }, [selectedResult?._id]);
 
@@ -366,7 +388,7 @@ export default function TestDetailPage() {
         : selectedResult.testId._id || selectedResult.testId.toString();
 
       // Use simple API to add question
-      await questionRecordsApi.add({
+      const addResponse = await questionRecordsApi.add({
         studentId,
         testId,
         subject,
@@ -374,16 +396,43 @@ export default function TestDetailPage() {
         questionNumber: questionNum,
         subtopic: questionData.subtopic.trim()
       });
+      
+      console.log('✅ Question added, response:', addResponse.data);
 
-      // Reset form first
+      // Optimistically update the UI immediately
+      if (addResponse.data?.success && addResponse.data.data) {
+        const newQuestion = {
+          questionNumber: questionNum,
+          subtopic: questionData.subtopic.trim(),
+          _id: addResponse.data.data._id || `temp-${Date.now()}`
+        };
+        
+        setResultQuestions(prev => {
+          const subjectKey = subject as keyof typeof prev;
+          const newState = {
+            ...prev,
+            [subjectKey]: {
+              ...prev[subjectKey],
+              [type]: [...(prev[subjectKey]?.[type] || []), newQuestion]
+            }
+          };
+          console.log('🔄 Optimistically updated questions:', newState);
+          return newState;
+        });
+        setQuestionsUpdateKey(prev => prev + 1);
+      }
+
+      // Reset form
       setEditingQuestion(null);
       setQuestionData({ questionNumber: '', subtopic: '' });
       
-      // Reload questions for this result - this will update the UI
-      await loadQuestionsForResult();
-      
-      // Show success notification after state update
+      // Show success notification immediately
       success('Question added successfully!');
+      
+      // Reload questions from server to ensure consistency (in background)
+      setTimeout(async () => {
+        await loadQuestionsForResult(selectedResult._id);
+      }, 200);
     } catch (error: any) {
       const errorMsg = error.response?.data?.error || error.message;
       if (errorMsg.includes('already recorded')) {
@@ -411,13 +460,48 @@ export default function TestDetailPage() {
 
     setIsSaving(true);
     try {
-      await questionRecordsApi.delete(questionId);
+      // Find the question to remove optimistically
+      const questionToRemove = Object.values(resultQuestions).flatMap(subj => 
+        [...(subj.negative || []), ...(subj.unattempted || [])]
+      ).find(q => q._id === questionId);
       
-      // Reload questions first - this will update the UI
-      await loadQuestionsForResult();
+      // Optimistically remove from UI
+      if (questionToRemove) {
+        const subjectKey = Object.keys(resultQuestions).find(key => {
+          const subj = resultQuestions[key as keyof typeof resultQuestions];
+          return subj.negative.some(q => q._id === questionId) || 
+                 subj.unattempted.some(q => q._id === questionId);
+        }) as keyof typeof resultQuestions;
+        
+        if (subjectKey) {
+          const type = resultQuestions[subjectKey].negative.some(q => q._id === questionId) 
+            ? 'negative' : 'unattempted';
+          
+          setResultQuestions(prev => {
+            const newState = {
+              ...prev,
+              [subjectKey]: {
+                ...prev[subjectKey],
+                [type]: prev[subjectKey][type].filter(q => q._id !== questionId)
+              }
+            };
+            console.log('🔄 Optimistically removed question:', newState);
+            return newState;
+          });
+          setQuestionsUpdateKey(prev => prev + 1);
+        }
+      }
       
-      // Show success notification after state update
+      const deleteResponse = await questionRecordsApi.delete(questionId);
+      console.log('✅ Question deleted, response:', deleteResponse.data);
+      
+      // Show success notification immediately
       success('Question deleted successfully!');
+      
+      // Reload questions from server to ensure consistency (in background)
+      setTimeout(async () => {
+        await loadQuestionsForResult(selectedResult._id);
+      }, 200);
     } catch (error: any) {
       console.error('Failed to delete question:', error);
       showError('Failed to delete question: ' + (error.response?.data?.error || error.message));
@@ -863,9 +947,12 @@ export default function TestDetailPage() {
                             )}
                           </div>
                           {(() => {
+                            // Use the update key to force re-render
+                            const _ = questionsUpdateKey;
                             const questions = resultQuestions[subject.name as keyof typeof resultQuestions]?.unattempted || [];
+                            console.log(`🔍 Rendering unattempted for ${subject.name}:`, questions.length, 'questions');
                             return questions.length > 0 ? (
-                              <div className="space-y-2">
+                              <div key={`unattempted-${subject.name}-${questionsUpdateKey}`} className="space-y-2">
                                 {questions.map((q) => (
                                   <div
                                     key={q._id}
@@ -889,7 +976,7 @@ export default function TestDetailPage() {
                                 ))}
                               </div>
                             ) : (
-                              <p className="text-sm text-muted-foreground text-center py-4">No unattempted questions recorded</p>
+                              <p key={`unattempted-empty-${subject.name}-${questionsUpdateKey}`} className="text-sm text-muted-foreground text-center py-4">No unattempted questions recorded</p>
                             );
                           })()}
                         </div>
@@ -961,9 +1048,12 @@ export default function TestDetailPage() {
                             )}
                           </div>
                           {(() => {
+                            // Use the update key to force re-render
+                            const _ = questionsUpdateKey;
                             const questions = resultQuestions[subject.name as keyof typeof resultQuestions]?.negative || [];
+                            console.log(`🔍 Rendering negative for ${subject.name}:`, questions.length, 'questions');
                             return questions.length > 0 ? (
-                              <div className="space-y-2">
+                              <div key={`negative-${subject.name}-${questionsUpdateKey}`} className="space-y-2">
                                 {questions.map((q) => (
                                   <div
                                     key={q._id}
@@ -987,7 +1077,7 @@ export default function TestDetailPage() {
                                 ))}
                               </div>
                             ) : (
-                              <p className="text-sm text-muted-foreground text-center py-4">No negative questions recorded</p>
+                              <p key={`negative-empty-${subject.name}-${questionsUpdateKey}`} className="text-sm text-muted-foreground text-center py-4">No negative questions recorded</p>
                             );
                           })()}
                         </div>
