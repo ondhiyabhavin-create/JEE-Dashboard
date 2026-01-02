@@ -318,6 +318,8 @@ export default function TestDetailPage() {
       );
       
       if (isDuplicate) {
+        setSavingButton(null);
+        setIsSaving(false);
         showWarning('This question is already added');
         return;
       }
@@ -343,28 +345,42 @@ export default function TestDetailPage() {
 
       const response = await resultsApi.update(selectedResult._id, updateData);
       
-      console.log('✅ Update response:', response.data);
+      console.log('✅ Update response:', response);
+      console.log('✅ Update response.data:', response.data);
+      
+      // Handle response - axios wraps it, so response.data is the actual result
       const updatedResultData = response.data;
       
-      // Update selected result
-      setSelectedResult(updatedResultData);
+      // Ensure we have the updated data with populated fields
+      if (!updatedResultData) {
+        throw new Error('No data returned from server');
+      }
+      
+      console.log('✅ Updated result data:', updatedResultData);
+      console.log('✅ Physics negativeQuestions:', updatedResultData.physics?.negativeQuestions);
+      
+      // Update selected result - force a new object reference for React to detect change
+      setSelectedResult({ ...updatedResultData });
       
       // Update the result in the results list without refetching all data
       setResults(prevResults => 
         prevResults.map(r => 
-          r._id === selectedResult._id ? updatedResultData : r
+          r._id === selectedResult._id ? { ...updatedResultData } : r
         )
       );
       setAllResults(prevAllResults => 
         prevAllResults.map(r => 
-          r._id === selectedResult._id ? updatedResultData : r
+          r._id === selectedResult._id ? { ...updatedResultData } : r
         )
       );
       
       setEditingQuestion(null);
       setQuestionData({ questionNumber: '', subtopic: '' });
       
-      // Refresh counts and update UI immediately
+      // Show success notification immediately
+      success('Question added successfully!');
+      
+      // Refresh counts and update UI in background
       if (updatedResultData.studentId) {
         // Get the actual studentId - could be string or object
         const studentId = typeof updatedResultData.studentId === 'string' 
@@ -374,12 +390,12 @@ export default function TestDetailPage() {
         if (studentId) {
           // Refresh counts and update UI
           studentTopicStatusApi.refreshCounts(studentId)
-            .then((response) => {
+            .then((countResponse) => {
               // Update counts in UI immediately
-              if (response.data?.success && response.data.data) {
+              if (countResponse.data?.success && countResponse.data.data) {
                 // Convert array to grouped format
                 const grouped: typeof subtopicCounts = {};
-                response.data.data.forEach((status: any) => {
+                countResponse.data.data.forEach((status: any) => {
                   if (!grouped[status.subject]) grouped[status.subject] = {};
                   if (!grouped[status.subject][status.topicName]) grouped[status.subject][status.topicName] = {};
                   grouped[status.subject][status.topicName][status.subtopicName] = {
@@ -392,13 +408,10 @@ export default function TestDetailPage() {
             })
             .catch((err: any) => {
               console.error('Failed to refresh counts:', err);
-              // Still show success - counts will update eventually
+              // Don't show error - counts will update eventually
             });
         }
       }
-      
-      // Show success notification
-      success('Question added successfully!');
     } catch (error: any) {
       console.error('Failed to add question:', error);
       showError('Failed to add question: ' + (error.response?.data?.error || error.message));
@@ -436,22 +449,28 @@ export default function TestDetailPage() {
       const response = await resultsApi.update(selectedResult._id, updateData);
       const updatedResultData = response.data;
       
-      // Update selected result
-      setSelectedResult(updatedResultData);
+      console.log('✅ Delete response:', updatedResultData);
+      console.log('✅ Physics negativeQuestions after delete:', updatedResultData.physics?.negativeQuestions);
+      
+      // Update selected result - force a new object reference for React to detect change
+      setSelectedResult({ ...updatedResultData });
       
       // Update the result in the results list without refetching all data
       setResults(prevResults => 
         prevResults.map(r => 
-          r._id === selectedResult._id ? updatedResultData : r
+          r._id === selectedResult._id ? { ...updatedResultData } : r
         )
       );
       setAllResults(prevAllResults => 
         prevAllResults.map(r => 
-          r._id === selectedResult._id ? updatedResultData : r
+          r._id === selectedResult._id ? { ...updatedResultData } : r
         )
       );
       
-      // Refresh counts and update UI immediately
+      // Show success notification immediately
+      success('Question deleted successfully!');
+      
+      // Refresh counts and update UI in background
       if (updatedResultData.studentId) {
         // Get the actual studentId - could be string or object
         const studentId = typeof updatedResultData.studentId === 'string' 
@@ -461,12 +480,12 @@ export default function TestDetailPage() {
         if (studentId) {
           // Refresh counts and update UI
           studentTopicStatusApi.refreshCounts(studentId)
-            .then((response) => {
+            .then((countResponse) => {
               // Update counts in UI immediately
-              if (response.data?.success && response.data.data) {
+              if (countResponse.data?.success && countResponse.data.data) {
                 // Convert array to grouped format
                 const grouped: typeof subtopicCounts = {};
-                response.data.data.forEach((status: any) => {
+                countResponse.data.data.forEach((status: any) => {
                   if (!grouped[status.subject]) grouped[status.subject] = {};
                   if (!grouped[status.subject][status.topicName]) grouped[status.subject][status.topicName] = {};
                   grouped[status.subject][status.topicName][status.subtopicName] = {
@@ -479,12 +498,10 @@ export default function TestDetailPage() {
             })
             .catch((err: any) => {
               console.error('Failed to refresh counts:', err);
-              // Still show success - counts will update eventually
+              // Don't show error - counts will update eventually
             });
         }
       }
-      
-      success('Question deleted successfully!');
     } catch (error: any) {
       console.error('Failed to delete question:', error);
       showError('Failed to delete question: ' + (error.response?.data?.error || error.message));
@@ -522,11 +539,26 @@ export default function TestDetailPage() {
     );
   }
 
+  // Memoize subjects to ensure it updates when selectedResult changes
   const subjects = [
     { name: 'Physics', key: 'physics', data: selectedResult?.physics, color: 'text-blue-600', bgColor: 'bg-blue-50 dark:bg-blue-950/20', borderColor: 'border-blue-200 dark:border-blue-800' },
     { name: 'Chemistry', key: 'chemistry', data: selectedResult?.chemistry, color: 'text-green-600', bgColor: 'bg-green-50 dark:bg-green-950/20', borderColor: 'border-green-200 dark:border-green-800' },
     { name: 'Mathematics', key: 'maths', data: selectedResult?.maths, color: 'text-purple-600', bgColor: 'bg-purple-50 dark:bg-purple-950/20', borderColor: 'border-purple-200 dark:border-purple-800' },
   ];
+
+  // Debug: Log when selectedResult changes
+  useEffect(() => {
+    if (selectedResult) {
+      console.log('🔄 selectedResult updated:', {
+        physicsNegative: selectedResult.physics?.negativeQuestions,
+        physicsUnattempted: selectedResult.physics?.unattemptedQuestions,
+        chemistryNegative: selectedResult.chemistry?.negativeQuestions,
+        chemistryUnattempted: selectedResult.chemistry?.unattemptedQuestions,
+        mathsNegative: selectedResult.maths?.negativeQuestions,
+        mathsUnattempted: selectedResult.maths?.unattemptedQuestions,
+      });
+    }
+  }, [selectedResult]);
 
   return (
     <>
@@ -836,7 +868,7 @@ export default function TestDetailPage() {
                   const negative = subjectData.wrong || 0;
                   
                   return (
-                    <Card key={subject.name} className={`border-2 ${subject.borderColor}`}>
+                    <Card key={`${subject.name}-${selectedResult?._id || 'none'}`} className={`border-2 ${subject.borderColor}`}>
                       <CardHeader className={subject.bgColor}>
                         <CardTitle className={`text-xl ${subject.color}`}>{subject.name}</CardTitle>
                       </CardHeader>
