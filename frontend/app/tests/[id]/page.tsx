@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Award, Calendar, X, FileText, Edit2, Save, Trash2, Plus, XCircle, Search, Loader2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { testsApi, resultsApi, syllabusApi, studentTopicStatusApi } from '@/lib/api';
-import SubtopicSelector from '@/components/SubtopicSelector';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -88,8 +87,6 @@ export default function TestDetailPage() {
   const fetchSubtopics = async (signal?: AbortSignal) => {
     try {
       const response = await syllabusApi.getGroupedSubtopics();
-      console.log('🔍 Full API response:', response);
-      console.log('🔍 Response.data:', response.data);
       
       // Axios wraps the response, so response.data is the actual response body
       // Backend returns: { success: true, data: { Physics: [], Chemistry: [], Mathematics: [] } }
@@ -99,30 +96,18 @@ export default function TestDetailPage() {
         // Check if it's the wrapped structure
         if (response.data.success === true && response.data.data) {
           data = response.data.data;
-          console.log('✅ Found data in response.data.data');
         } 
         // Check if it's direct structure (shouldn't happen but just in case)
         else if (response.data.Physics || response.data.Chemistry || response.data.Mathematics) {
           data = response.data;
-          console.log('✅ Found data directly in response.data');
         }
       }
       
       if (data) {
-        console.log('📊 Setting grouped subtopics:', {
-          Physics: data.Physics?.length || 0,
-          Chemistry: data.Chemistry?.length || 0,
-          Mathematics: data.Mathematics?.length || 0,
-          fullData: data
-        });
         setGroupedSubtopics(data);
-      } else {
-        console.error('❌ No valid data found. Response structure:', JSON.stringify(response.data, null, 2));
       }
     } catch (error: any) {
-      console.error('❌ Failed to fetch subtopics:', error);
-      console.error('Error response:', error.response?.data);
-      console.error('Error message:', error.message);
+      console.error('Failed to fetch subtopics:', error);
     }
   };
 
@@ -251,43 +236,13 @@ export default function TestDetailPage() {
     setFilteredResults(filtered);
   }, [search, allResults]);
 
-  // Debug: Log when selectedResult changes (must be before early returns)
-  useEffect(() => {
-    if (selectedResult) {
-      console.log('🔄 selectedResult STATE UPDATED:');
-      console.log('   Physics negativeQuestions:', selectedResult.physics?.negativeQuestions);
-      console.log('   Physics negativeQuestions length:', selectedResult.physics?.negativeQuestions?.length);
-      console.log('   Physics unattemptedQuestions:', selectedResult.physics?.unattemptedQuestions);
-      console.log('   Chemistry negativeQuestions:', selectedResult.chemistry?.negativeQuestions);
-      console.log('   Chemistry unattemptedQuestions:', selectedResult.chemistry?.unattemptedQuestions);
-      console.log('   Maths negativeQuestions:', selectedResult.maths?.negativeQuestions);
-      console.log('   Maths unattemptedQuestions:', selectedResult.maths?.unattemptedQuestions);
-      console.log('   Full selectedResult:', JSON.stringify(selectedResult, null, 2));
-    }
-  }, [selectedResult]);
-
-  // Memoize subjects to ensure it updates when selectedResult changes (must be before early returns)
+  // Memoize subjects to ensure it updates when selectedResult changes
   const subjects = useMemo(() => {
-    const subs = [
+    return [
       { name: 'Physics', key: 'physics', data: selectedResult?.physics, color: 'text-blue-600', bgColor: 'bg-blue-50 dark:bg-blue-950/20', borderColor: 'border-blue-200 dark:border-blue-800' },
       { name: 'Chemistry', key: 'chemistry', data: selectedResult?.chemistry, color: 'text-green-600', bgColor: 'bg-green-50 dark:bg-green-950/20', borderColor: 'border-green-200 dark:border-green-800' },
       { name: 'Mathematics', key: 'maths', data: selectedResult?.maths, color: 'text-purple-600', bgColor: 'bg-purple-50 dark:bg-purple-950/20', borderColor: 'border-purple-200 dark:border-purple-800' },
     ];
-    
-    // Debug log
-    if (selectedResult) {
-      console.log('🎨 SUBJECTS MEMOIZED:');
-      subs.forEach(subject => {
-        console.log(`   ${subject.name}:`, {
-          negativeQuestions: subject.data?.negativeQuestions,
-          negativeQuestionsLength: subject.data?.negativeQuestions?.length,
-          unattemptedQuestions: subject.data?.unattemptedQuestions,
-          unattemptedQuestionsLength: subject.data?.unattemptedQuestions?.length,
-        });
-      });
-    }
-    
-    return subs;
   }, [selectedResult]);
 
   const handleSaveRemarks = async () => {
@@ -323,8 +278,6 @@ export default function TestDetailPage() {
   };
 
   const handleAddQuestion = async (type: 'unattempted' | 'negative', subject: string) => {
-    console.log('🔍 handleAddQuestion called:', { type, subject, questionData });
-    
     if (!selectedResult) {
       showWarning('Please select a student result first');
       return;
@@ -340,7 +293,6 @@ export default function TestDetailPage() {
       return;
     }
 
-    // Create unique key for this button
     const buttonKey = `${type}-${subject}`;
     setSavingButton(buttonKey);
     setIsSaving(true);
@@ -368,89 +320,52 @@ export default function TestDetailPage() {
         subtopic: questionData.subtopic.trim()
       }];
 
-      // Clean currentData to remove mongoose _id and other fields that might interfere
-      const cleanCurrentData = {
-        right: currentData.right || 0,
-        wrong: currentData.wrong || 0,
-        unattempted: currentData.unattempted || 0,
-        score: currentData.score || 0,
-        unattemptedQuestions: currentData.unattemptedQuestions || [],
-        negativeQuestions: currentData.negativeQuestions || []
-      };
-
       const updateData = {
         [subjectKey]: {
-          ...cleanCurrentData,
-          [`${type}Questions`]: updatedQuestions
+          right: currentData.right || 0,
+          wrong: currentData.wrong || 0,
+          unattempted: currentData.unattempted || 0,
+          score: currentData.score || 0,
+          unattemptedQuestions: type === 'unattempted' ? updatedQuestions : (currentData.unattemptedQuestions || []),
+          negativeQuestions: type === 'negative' ? updatedQuestions : (currentData.negativeQuestions || [])
         }
       };
 
-      console.log('📤 PREPARING UPDATE:');
-      console.log('   Subject:', subjectKey);
-      console.log('   Type:', type);
-      console.log('   Current questions:', questions);
-      console.log('   Updated questions:', updatedQuestions);
-      console.log('   Clean current data:', cleanCurrentData);
-      console.log('   Final update data:', JSON.stringify(updateData, null, 2));
-
       const response = await resultsApi.update(selectedResult._id, updateData);
-      
-      console.log('✅ Update response:', response);
-      console.log('✅ Update response.data:', response.data);
-      console.log('✅ Update response.data.physics:', response.data?.physics);
-      console.log('✅ Update response.data.physics.negativeQuestions:', response.data?.physics?.negativeQuestions);
-      
-      // Handle response - axios wraps it, so response.data is the actual result
       const updatedResultData = response.data;
       
-      // Ensure we have the updated data with populated fields
-      if (!updatedResultData) {
-        throw new Error('No data returned from server');
-      }
+      // Update selected result immediately
+      setSelectedResult(JSON.parse(JSON.stringify(updatedResultData)));
       
-      console.log('✅ Updated result data:', updatedResultData);
-      console.log('✅ Physics negativeQuestions:', updatedResultData.physics?.negativeQuestions);
-      console.log('✅ Physics negativeQuestions length:', updatedResultData.physics?.negativeQuestions?.length);
-      
-      // Deep clone to ensure React detects the change - including nested arrays
-      const clonedData = JSON.parse(JSON.stringify(updatedResultData));
-      console.log('✅ Cloned data physics.negativeQuestions:', clonedData.physics?.negativeQuestions);
-      
-      // Update selected result - use deep clone to force React to detect nested changes
-      setSelectedResult(clonedData);
-      
-      // Update the result in the results list without refetching all data
+      // Update the result in the results list
       setResults(prevResults => 
         prevResults.map(r => 
-          r._id === selectedResult._id ? { ...updatedResultData } : r
+          r._id === selectedResult._id ? updatedResultData : r
         )
       );
       setAllResults(prevAllResults => 
         prevAllResults.map(r => 
-          r._id === selectedResult._id ? { ...updatedResultData } : r
+          r._id === selectedResult._id ? updatedResultData : r
         )
       );
       
+      // Reset form
       setEditingQuestion(null);
       setQuestionData({ questionNumber: '', subtopic: '' });
       
-      // Show success notification immediately
+      // Show success notification
       success('Question added successfully!');
       
-      // Refresh counts and update UI in background
+      // Refresh counts in background
       if (updatedResultData.studentId) {
-        // Get the actual studentId - could be string or object
         const studentId = typeof updatedResultData.studentId === 'string' 
           ? updatedResultData.studentId 
           : updatedResultData.studentId._id || updatedResultData.studentId.toString();
         
         if (studentId) {
-          // Refresh counts and update UI
           studentTopicStatusApi.refreshCounts(studentId)
             .then((countResponse) => {
-              // Update counts in UI immediately
               if (countResponse.data?.success && countResponse.data.data) {
-                // Convert array to grouped format
                 const grouped: typeof subtopicCounts = {};
                 countResponse.data.data.forEach((status: any) => {
                   if (!grouped[status.subject]) grouped[status.subject] = {};
@@ -465,7 +380,6 @@ export default function TestDetailPage() {
             })
             .catch((err: any) => {
               console.error('Failed to refresh counts:', err);
-              // Don't show error - counts will update eventually
             });
         }
       }
@@ -506,11 +420,8 @@ export default function TestDetailPage() {
       const response = await resultsApi.update(selectedResult._id, updateData);
       const updatedResultData = response.data;
       
-      console.log('✅ Delete response:', updatedResultData);
-      console.log('✅ Physics negativeQuestions after delete:', updatedResultData.physics?.negativeQuestions);
-      
       // Update selected result - force a new object reference for React to detect change
-      setSelectedResult({ ...updatedResultData });
+      setSelectedResult(JSON.parse(JSON.stringify(updatedResultData)));
       
       // Update the result in the results list without refetching all data
       setResults(prevResults => 
@@ -946,7 +857,7 @@ export default function TestDetailPage() {
                               <span className="text-sm text-muted-foreground">(Question Number & Subtopic)</span>
                             </div>
                             {editingQuestion?.type === 'unattempted' && editingQuestion.subject === subject.name ? (
-                              <div className="flex gap-2">
+                              <div className="flex gap-2 items-center">
                                 <Input
                                   type="number"
                                   placeholder="Q No."
@@ -954,28 +865,26 @@ export default function TestDetailPage() {
                                   onChange={(e) => setQuestionData({ ...questionData, questionNumber: e.target.value })}
                                   className="w-24"
                                 />
-                                <SubtopicSelector
-                                  subject={subject.name as 'Physics' | 'Chemistry' | 'Mathematics'}
+                                <select
                                   value={questionData.subtopic}
-                                  onChange={(value) => {
-                                    console.log('📝 Subtopic changed:', value);
-                                    setQuestionData({ ...questionData, subtopic: value });
-                                  }}
-                                  options={(() => {
+                                  onChange={(e) => setQuestionData({ ...questionData, subtopic: e.target.value })}
+                                  className="flex h-10 w-64 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                >
+                                  <option value="">Select subtopic...</option>
+                                  {(() => {
                                     const subjectKey = subject.name as keyof typeof groupedSubtopics;
                                     const opts = groupedSubtopics[subjectKey] || [];
-                                    if (opts.length === 0) {
-                                      console.warn(`⚠️ No subtopics found for ${subject.name}. Available subjects:`, Object.keys(groupedSubtopics));
-                                    }
-                                    return opts;
+                                    return opts.map((opt) => (
+                                      <option key={opt._id} value={opt.subtopicName}>
+                                        {opt.subtopicName} ({opt.topicName})
+                                      </option>
+                                    ));
                                   })()}
-                                  subtopicCounts={subtopicCounts[subject.name] || {}}
-                                  className="w-64"
-                                />
+                                </select>
                                 <Button
                                   onClick={() => handleAddQuestion('unattempted', subject.name)}
                                   size="sm"
-                                  disabled={isSaving}
+                                  disabled={isSaving || !questionData.questionNumber || !questionData.subtopic}
                                 >
                                   {savingButton === `unattempted-${subject.name}` ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1043,7 +952,7 @@ export default function TestDetailPage() {
                               <span className="text-sm text-muted-foreground">(Question Number & Subtopic)</span>
                             </div>
                             {editingQuestion?.type === 'negative' && editingQuestion.subject === subject.name ? (
-                              <div className="flex gap-2">
+                              <div className="flex gap-2 items-center">
                                 <Input
                                   type="number"
                                   placeholder="Q No."
@@ -1051,37 +960,26 @@ export default function TestDetailPage() {
                                   onChange={(e) => setQuestionData({ ...questionData, questionNumber: e.target.value })}
                                   className="w-24"
                                 />
-                                <SubtopicSelector
-                                  subject={subject.name as 'Physics' | 'Chemistry' | 'Mathematics'}
+                                <select
                                   value={questionData.subtopic}
-                                  onChange={(value) => {
-                                    console.log('📝 Subtopic changed:', value);
-                                    setQuestionData({ ...questionData, subtopic: value });
-                                  }}
-                                  options={(() => {
+                                  onChange={(e) => setQuestionData({ ...questionData, subtopic: e.target.value })}
+                                  className="flex h-10 w-64 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                >
+                                  <option value="">Select subtopic...</option>
+                                  {(() => {
                                     const subjectKey = subject.name as keyof typeof groupedSubtopics;
                                     const opts = groupedSubtopics[subjectKey] || [];
-                                    console.log(`🔍 SubtopicSelector options for ${subject.name} (negative):`, {
-                                      subjectKey,
-                                      optionsCount: opts.length,
-                                      availableKeys: Object.keys(groupedSubtopics),
-                                      groupedSubtopicsCounts: {
-                                        Physics: groupedSubtopics.Physics?.length || 0,
-                                        Chemistry: groupedSubtopics.Chemistry?.length || 0,
-                                        Mathematics: groupedSubtopics.Mathematics?.length || 0
-                                      }
-                                    });
-                                    if (opts.length === 0) {
-                                      console.warn(`⚠️ No subtopics found for ${subject.name}. Available subjects:`, Object.keys(groupedSubtopics));
-                                    }
-                                    return opts;
+                                    return opts.map((opt) => (
+                                      <option key={opt._id} value={opt.subtopicName}>
+                                        {opt.subtopicName} ({opt.topicName})
+                                      </option>
+                                    ));
                                   })()}
-                                  className="w-64"
-                                />
+                                </select>
                                 <Button
                                   onClick={() => handleAddQuestion('negative', subject.name)}
                                   size="sm"
-                                  disabled={isSaving}
+                                  disabled={isSaving || !questionData.questionNumber || !questionData.subtopic}
                                 >
                                   {savingButton === `negative-${subject.name}` ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1113,7 +1011,6 @@ export default function TestDetailPage() {
                           </div>
                           {(() => {
                             const negativeQs = subjectData.negativeQuestions || [];
-                            console.log(`🎯 Rendering ${subject.name} negativeQuestions:`, negativeQs, 'Length:', negativeQs.length);
                             return negativeQs.length > 0 ? (
                               <div className="space-y-2">
                                 {negativeQs.map((q: any, idx: number) => (
