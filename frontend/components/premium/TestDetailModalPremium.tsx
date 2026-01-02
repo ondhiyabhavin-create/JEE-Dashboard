@@ -75,10 +75,16 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
     setIsSaving(true);
     try {
       const response = await resultsApi.update(currentResult._id, { remarks });
-      // Refetch to get the complete updated result
-      const updatedResult = await resultsApi.getById(currentResult._id);
-      setCurrentResult(updatedResult.data);
+      const updatedResultData = response.data;
+      
+      // Update current result without refetching
+      setCurrentResult(updatedResultData);
       setIsEditingRemarks(false);
+      
+      // Show success notification
+      success('Remarks saved successfully!');
+      
+      // Notify parent component if callback provided
       if (onUpdate) onUpdate();
     } catch (error: any) {
       console.error('Failed to update remarks:', error);
@@ -122,15 +128,17 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
       };
 
       const response = await resultsApi.update(currentResult._id, updateData);
-      // Refetch to get the complete updated result
-      const updatedResult = await resultsApi.getById(currentResult._id);
-      setCurrentResult(updatedResult.data);
+      const updatedResultData = response.data;
+      
+      // Update current result without refetching
+      setCurrentResult(updatedResultData);
       setEditingQuestion(null);
       setQuestionData({ questionNumber: '', subtopic: '' });
       
       // Show success notification
       success('Question added successfully!');
       
+      // Notify parent component if callback provided
       if (onUpdate) onUpdate();
     } catch (error: any) {
       console.error('Failed to add question:', error);
@@ -166,11 +174,16 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
       };
 
       const response = await resultsApi.update(currentResult._id, updateData);
-      // Refetch to get the complete updated result
-      const updatedResult = await resultsApi.getById(currentResult._id);
-      setCurrentResult(updatedResult.data);
-      if (onUpdate) onUpdate();
+      const updatedResultData = response.data;
+      
+      // Update current result without refetching
+      setCurrentResult(updatedResultData);
+      
+      // Show success notification
       success('Question deleted successfully!');
+      
+      // Notify parent component if callback provided
+      if (onUpdate) onUpdate();
     } catch (error: any) {
       console.error('Failed to delete question:', error);
       showError('Failed to delete question: ' + (error.response?.data?.error || error.message));

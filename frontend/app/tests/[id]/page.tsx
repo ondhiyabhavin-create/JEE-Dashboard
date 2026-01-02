@@ -219,11 +219,26 @@ export default function TestDetailPage() {
     if (!selectedResult) return;
     setIsSaving(true);
     try {
-      await resultsApi.update(selectedResult._id, { remarks });
-      const updatedResult = await resultsApi.getById(selectedResult._id);
-      setSelectedResult(updatedResult.data);
+      const response = await resultsApi.update(selectedResult._id, { remarks });
+      const updatedResultData = response.data;
+      
+      // Update selected result
+      setSelectedResult(updatedResultData);
+      
+      // Update the result in the results list without refetching all data
+      setResults(prevResults => 
+        prevResults.map(r => 
+          r._id === selectedResult._id ? updatedResultData : r
+        )
+      );
+      setAllResults(prevAllResults => 
+        prevAllResults.map(r => 
+          r._id === selectedResult._id ? updatedResultData : r
+        )
+      );
+      
       setIsEditingRemarks(false);
-      fetchData(); // Will be called without signal from other places
+      success('Remarks saved successfully!');
     } catch (error: any) {
       console.error('Failed to update remarks:', error);
       showError('Failed to update remarks: ' + (error.response?.data?.error || error.message));
@@ -272,12 +287,26 @@ export default function TestDetailPage() {
         }
       };
 
-      await resultsApi.update(selectedResult._id, updateData);
-      const updatedResult = await resultsApi.getById(selectedResult._id);
-      setSelectedResult(updatedResult.data);
+      const response = await resultsApi.update(selectedResult._id, updateData);
+      const updatedResultData = response.data;
+      
+      // Update selected result
+      setSelectedResult(updatedResultData);
+      
+      // Update the result in the results list without refetching all data
+      setResults(prevResults => 
+        prevResults.map(r => 
+          r._id === selectedResult._id ? updatedResultData : r
+        )
+      );
+      setAllResults(prevAllResults => 
+        prevAllResults.map(r => 
+          r._id === selectedResult._id ? updatedResultData : r
+        )
+      );
+      
       setEditingQuestion(null);
       setQuestionData({ questionNumber: '', subtopic: '' });
-      fetchData(); // Will be called without signal from other places
       
       // Show success notification
       success('Question added successfully!');
@@ -315,10 +344,24 @@ export default function TestDetailPage() {
         }
       };
 
-      await resultsApi.update(selectedResult._id, updateData);
-      const updatedResult = await resultsApi.getById(selectedResult._id);
-      setSelectedResult(updatedResult.data);
-      fetchData(); // Will be called without signal from other places
+      const response = await resultsApi.update(selectedResult._id, updateData);
+      const updatedResultData = response.data;
+      
+      // Update selected result
+      setSelectedResult(updatedResultData);
+      
+      // Update the result in the results list without refetching all data
+      setResults(prevResults => 
+        prevResults.map(r => 
+          r._id === selectedResult._id ? updatedResultData : r
+        )
+      );
+      setAllResults(prevAllResults => 
+        prevAllResults.map(r => 
+          r._id === selectedResult._id ? updatedResultData : r
+        )
+      );
+      
       success('Question deleted successfully!');
     } catch (error: any) {
       console.error('Failed to delete question:', error);
