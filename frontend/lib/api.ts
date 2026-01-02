@@ -112,11 +112,13 @@ export const studentsApi = {
 
 // Tests API
 export const testsApi = {
-  getAll: () => api.get('/tests'),
+  getAll: (page = 1, limit = 18) => api.get(`/tests?page=${page}&limit=${limit}`),
   getById: (id: string) => api.get(`/tests/${id}`),
   create: (data: any) => api.post('/tests', data),
   update: (id: string, data: any) => api.put(`/tests/${id}`, data),
   delete: (id: string) => api.delete(`/tests/${id}`),
+  batchDelete: (testIds: string[]) => api.post('/tests/batch-delete', { testIds }),
+  deleteAll: () => api.delete('/tests'),
   uploadExcel: (file: File) => {
     const formData = new FormData();
     formData.append('excelFile', file);
