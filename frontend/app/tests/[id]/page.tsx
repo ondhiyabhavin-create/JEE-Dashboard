@@ -24,7 +24,7 @@ export default function TestDetailPage() {
   const [results, setResults] = useState<any[]>([]);
   const [allResults, setAllResults] = useState<any[]>([]); // Store all results for filtering
   const [filteredResults, setFilteredResults] = useState<any[]>([]); // Filtered results for display
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [selectedResult, setSelectedResult] = useState<any>(null);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({
@@ -57,7 +57,6 @@ export default function TestDetailPage() {
       };
     };
   }>({});
-  const [loadingCounts, setLoadingCounts] = useState(false);
   const [resultQuestions, setResultQuestions] = useState<{
     Physics: { negative: Array<{ questionNumber: number; subtopic: string; _id: string }>; unattempted: Array<{ questionNumber: number; subtopic: string; _id: string }> };
     Chemistry: { negative: Array<{ questionNumber: number; subtopic: string; _id: string }>; unattempted: Array<{ questionNumber: number; subtopic: string; _id: string }> };
@@ -76,6 +75,10 @@ export default function TestDetailPage() {
     
     const loadData = async () => {
       try {
+        // Only show loader on initial mount
+        if (!test) {
+          setLoading(true);
+        }
         await Promise.all([
           fetchData(abortController.signal),
           fetchSubtopics(abortController.signal)
@@ -84,6 +87,10 @@ export default function TestDetailPage() {
         if (error.name !== 'AbortError') {
           console.error('Failed to load data:', error);
           showError('Failed to load test data. Please try again.');
+        }
+      } finally {
+        if (!abortController.signal.aborted) {
+          setLoading(false);
         }
       }
     };
@@ -127,7 +134,7 @@ export default function TestDetailPage() {
     if (!selectedResult?.studentId) return;
     
     try {
-      setLoadingCounts(true);
+      // Don't show loading state - load silently in background
       const studentId = typeof selectedResult.studentId === 'string' 
         ? selectedResult.studentId 
         : selectedResult.studentId._id || selectedResult.studentId.toString();
@@ -139,8 +146,6 @@ export default function TestDetailPage() {
     } catch (error: any) {
       console.error('Failed to fetch subtopic counts:', error);
       // Don't show error to user - counts are optional
-    } finally {
-      setLoadingCounts(false);
     }
   }, [selectedResult?.studentId]);
 
@@ -224,11 +229,7 @@ export default function TestDetailPage() {
 
   const fetchData = async (signal?: AbortSignal, pageNum: number = 1) => {
     try {
-      // Only show loading on initial load, not on subsequent fetches
-      if (pageNum === 1 && !test) {
-        setLoading(true);
-      }
-      // Fetch test and page of results
+      // Fetch test and page of results (loading state is managed in useEffect)
       const [testRes, resultsRes] = await Promise.all([
         testsApi.getById(testId),
         resultsApi.getByTest(testId, pageNum, 50), // Fetch specific page
@@ -251,11 +252,8 @@ export default function TestDetailPage() {
       } else {
         showError('Failed to load test data. Please try again.');
       }
-    } finally {
-      if (!signal?.aborted) {
-        setLoading(false);
-      }
     }
+    // Note: Loading state is managed in the useEffect that calls this function
   };
   
   // Fetch page of results
@@ -743,12 +741,7 @@ export default function TestDetailPage() {
                 {selectedResult?.studentId && (
                   <Card className="border-2 border-primary/20">
                     <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <CardTitle>Subtopic Question Counts</CardTitle>
-                        {loadingCounts && (
-                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                        )}
-                      </div>
+                      <CardTitle>Subtopic Question Counts</CardTitle>
                       <p className="text-sm text-muted-foreground">
                         Total questions by subtopic across all tests for this student
                       </p>
@@ -797,7 +790,7 @@ export default function TestDetailPage() {
                         </div>
                       ) : (
                         <p className="text-sm text-muted-foreground text-center py-4">
-                          {loadingCounts ? 'Loading counts...' : 'No question counts available yet'}
+                          No question counts available yet
                         </p>
                       )}
                     </CardContent>
