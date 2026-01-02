@@ -26,10 +26,11 @@ router.get('/subject/:subject', async (req, res) => {
   }
 });
 
-// Get all subtopics grouped by subject (for dropdowns)
+// Get all subtopics grouped by subject (for dropdowns) - from Syllabus
 router.get('/subtopics/grouped', async (req, res) => {
   try {
-    const topics = await Topic.find().sort({ subject: 1, name: 1 });
+    const Syllabus = require('../models/Syllabus');
+    const syllabus = await Syllabus.find().sort({ order: 1 });
     
     const grouped = {
       Physics: [],
@@ -37,12 +38,14 @@ router.get('/subtopics/grouped', async (req, res) => {
       Mathematics: []
     };
 
-    topics.forEach(topic => {
-      topic.subtopics.forEach(subtopic => {
-        grouped[topic.subject].push({
-          topicName: topic.name,
-          subtopicName: subtopic.name,
-          _id: subtopic._id.toString()
+    syllabus.forEach(subjectItem => {
+      subjectItem.topics.forEach(topic => {
+        topic.subtopics.forEach(subtopic => {
+          grouped[subjectItem.subject].push({
+            topicName: topic.name,
+            subtopicName: subtopic,
+            _id: `${subjectItem.subject}-${topic.name}-${subtopic}` // Generate unique ID
+          });
         });
       });
     });

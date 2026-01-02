@@ -19,9 +19,14 @@ const getHeaderName = async () => {
  * Calculate the exact datetime for a visit by combining date and time
  */
 const getVisitDateTime = (visitDate, visitTime) => {
-  const date = new Date(visitDate);
-  const [hours, minutes] = visitTime.split(':').map(Number);
-  date.setHours(hours || 10, minutes || 0, 0, 0);
+  // Parse the date string (format: YYYY-MM-DD)
+  const [year, month, day] = visitDate.split('-').map(Number);
+  // Parse the time string (format: HH:MM)
+  const [hours, minutes] = (visitTime || '10:00').split(':').map(Number);
+  
+  // Create a new Date object with the specific date and time in local timezone
+  // Note: month is 0-indexed in JavaScript Date constructor
+  const date = new Date(year, month - 1, day, hours || 10, minutes || 0, 0, 0);
   return date;
 };
 

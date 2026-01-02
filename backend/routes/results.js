@@ -16,20 +16,22 @@ const updateSubtopicCounts = async (studentId) => {
     // Get all test results for this student
     const allResults = await StudentTestResult.find({ studentId });
 
-    // Get all topics to build a subtopic lookup map
-    const Topic = require('../models/Topic');
-    const allTopics = await Topic.find();
+    // Get all syllabus to build a subtopic lookup map
+    const Syllabus = require('../models/Syllabus');
+    const allSyllabus = await Syllabus.find();
     
     // Build a map: subject -> subtopicName -> { topicName, subtopicName }
     const subtopicMap = {};
-    allTopics.forEach(topic => {
-      topic.subtopics.forEach(subtopic => {
-        const key = `${topic.subject}:${subtopic.name}`;
-        subtopicMap[key] = {
-          subject: topic.subject,
-          topicName: topic.name,
-          subtopicName: subtopic.name
-        };
+    allSyllabus.forEach(subjectItem => {
+      subjectItem.topics.forEach(topic => {
+        topic.subtopics.forEach(subtopic => {
+          const key = `${subjectItem.subject}:${subtopic}`;
+          subtopicMap[key] = {
+            subject: subjectItem.subject,
+            topicName: topic.name,
+            subtopicName: subtopic
+          };
+        });
       });
     });
 

@@ -88,6 +88,93 @@ router.get('/subject/:subject', async (req, res) => {
   }
 });
 
+// Get all subtopics grouped by subject (for dropdowns)
+router.get('/subtopics/grouped', async (req, res) => {
+  try {
+    await initializeDefaultSyllabus();
+    const syllabus = await Syllabus.find().sort({ order: 1 }).lean();
+    
+    const grouped = {
+      Physics: [],
+      Chemistry: [],
+      Mathematics: []
+    };
+
+    // Normalize subject names to match the expected keys
+    const normalizeSubject = (subject) => {
+      if (!subject) return null;
+      const normalized = subject.trim();
+      // Map common variations to standard names
+      if (normalized.toLowerCase() === 'maths' || normalized.toLowerCase() === 'math') {
+        return 'Mathematics';
+      }
+      if (normalized === 'Physics' || normalized === 'physics') {
+        return 'Physics';
+      }
+      if (normalized === 'Chemistry' || normalized === 'chemistry') {
+        return 'Chemistry';
+      }
+      // Return as-is if it matches one of the standard names
+      if (['Physics', 'Chemistry', 'Mathematics'].includes(normalized)) {
+        return normalized;
+      }
+      return null;
+    };
+
+    console.log('Total syllabus items:', syllabus.length);
+    console.log('Subjects found in database:', syllabus.map(s => s.subject));
+
+    syllabus.forEach(subjectItem => {
+      const normalizedSubject = normalizeSubject(subjectItem.subject);
+      
+      if (!normalizedSubject) {
+        console.warn(`⚠️ Unknown subject name: "${subjectItem.subject}". Skipping.`);
+        return;
+      }
+
+      console.log(`Processing ${subjectItem.subject} (normalized to ${normalizedSubject}):`, {
+        topicsCount: subjectItem.topics?.length || 0,
+        topics: subjectItem.topics?.map(t => ({ name: t.name, subtopicsCount: t.subtopics?.length || 0 }))
+      });
+
+      if (!subjectItem.topics || !Array.isArray(subjectItem.topics) || subjectItem.topics.length === 0) {
+        console.log(`No topics found for ${subjectItem.subject}`);
+        return;
+      }
+      
+      subjectItem.topics.forEach(topic => {
+        console.log(`  Topic: ${topic.name}, Subtopics:`, topic.subtopics);
+        
+        if (!topic.subtopics || !Array.isArray(topic.subtopics) || topic.subtopics.length === 0) {
+          console.log(`  No subtopics found for topic ${topic.name} in ${subjectItem.subject}`);
+          return;
+        }
+        
+        topic.subtopics.forEach(subtopic => {
+          if (subtopic && typeof subtopic === 'string' && subtopic.trim()) {
+            grouped[normalizedSubject].push({
+              topicName: topic.name,
+              subtopicName: subtopic.trim(),
+              _id: `${normalizedSubject}-${topic.name}-${subtopic.trim()}` // Generate unique ID
+            });
+          }
+        });
+      });
+    });
+
+    console.log('\n📊 Final grouped subtopics summary:');
+    console.log(`   Physics: ${grouped.Physics.length} subtopics`);
+    console.log(`   Chemistry: ${grouped.Chemistry.length} subtopics`);
+    console.log(`   Mathematics: ${grouped.Mathematics.length} subtopics`);
+    console.log('\n📦 Sending response:', JSON.stringify({ success: true, data: grouped }, null, 2).substring(0, 500));
+    
+    res.json({ success: true, data: grouped });
+  } catch (error) {
+    console.error('Get grouped subtopics error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Create new subject syllabus
 router.post('/', async (req, res) => {
   try {
