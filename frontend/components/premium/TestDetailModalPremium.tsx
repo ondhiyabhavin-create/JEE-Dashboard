@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import CountUp from '@/components/CountUp';
 import { formatDate, formatPercentage } from '@/lib/utils';
-import { resultsApi, topicsApi } from '@/lib/api';
+import { resultsApi, syllabusApi } from '@/lib/api';
 import SubtopicSelector from '@/components/SubtopicSelector';
 
 interface TestDetailModalPremiumProps {
@@ -43,7 +43,7 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
   useEffect(() => {
     const fetchSubtopics = async () => {
       try {
-        const response = await topicsApi.getGroupedSubtopics();
+        const response = await syllabusApi.getGroupedSubtopics();
         if (response.data.success) {
           setGroupedSubtopics(response.data.data);
         }

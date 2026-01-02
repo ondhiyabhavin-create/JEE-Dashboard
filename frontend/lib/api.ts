@@ -124,6 +124,7 @@ export const backlogApi = {
 export const syllabusApi = {
   getAll: () => api.get('/syllabus'),
   getBySubject: (subject: string) => api.get(`/syllabus/subject/${subject}`),
+  getGroupedSubtopics: () => api.get('/syllabus/subtopics/grouped'),
   create: (data: any) => api.post('/syllabus', data),
   update: (id: string, data: any) => api.put(`/syllabus/${id}`, data),
   delete: (id: string) => api.delete(`/syllabus/${id}`),

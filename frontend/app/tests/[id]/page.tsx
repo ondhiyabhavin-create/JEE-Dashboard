@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Award, Calendar, X, FileText, Edit2, Save, Trash2, Plus, XCircle, Search } from 'lucide-react';
 import Link from 'next/link';
-import { testsApi, resultsApi, topicsApi } from '@/lib/api';
+import { testsApi, resultsApi, syllabusApi } from '@/lib/api';
 import SubtopicSelector from '@/components/SubtopicSelector';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -51,7 +51,7 @@ export default function TestDetailPage() {
 
   const fetchSubtopics = async () => {
     try {
-      const response = await topicsApi.getGroupedSubtopics();
+      const response = await syllabusApi.getGroupedSubtopics();
       if (response.data.success) {
         setGroupedSubtopics(response.data.data);
       }
