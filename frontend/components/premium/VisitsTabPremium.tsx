@@ -65,6 +65,12 @@ export default function VisitsTabPremium({ studentId, student }: VisitsTabPremiu
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent double submission
+    if (saving) {
+      return;
+    }
+    
     setError('');
 
     // Validate that visit is in the future
@@ -92,7 +98,10 @@ export default function VisitsTabPremium({ studentId, student }: VisitsTabPremiu
   };
 
   const createVisit = async () => {
+    if (saving) return; // Prevent double submission
+    
     try {
+      setSaving(true);
       await visitsApi.create({ studentId, ...formData });
       setShowForm(false);
       setError('');
@@ -106,12 +115,14 @@ export default function VisitsTabPremium({ studentId, student }: VisitsTabPremiu
     } catch (err: any) {
       console.error('Failed to create visit:', err);
       setError(err.response?.data?.error || 'Failed to create visit. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleProceedWithoutEmail = async () => {
     setShowEmailWarning(false);
-    if (pendingSubmit) {
+    if (pendingSubmit && !saving) {
       await pendingSubmit();
       setPendingSubmit(null);
     }
@@ -147,7 +158,7 @@ export default function VisitsTabPremium({ studentId, student }: VisitsTabPremiu
   };
 
   const handleSaveEdit = async () => {
-    if (!editingVisit) return;
+    if (!editingVisit || saving) return; // Prevent double submission
     
     setSaving(true);
     setError('');
@@ -256,8 +267,22 @@ export default function VisitsTabPremium({ studentId, student }: VisitsTabPremiu
                   />
                 </div>
                 <div className="flex gap-2">
-                  <Button type="submit">Save Visit</Button>
-                  <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
+                  <Button type="submit" disabled={saving}>
+                    {saving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      'Save Visit'
+                    )}
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => setShowForm(false)}
+                    disabled={saving}
+                  >
                     Cancel
                   </Button>
                 </div>
@@ -400,8 +425,17 @@ export default function VisitsTabPremium({ studentId, student }: VisitsTabPremiu
                             disabled={saving}
                             className="flex items-center gap-2"
                           >
-                            <Save className="h-4 w-4" />
-                            {saving ? 'Saving...' : 'Save'}
+                            {saving ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Saving...
+                              </>
+                            ) : (
+                              <>
+                                <Save className="h-4 w-4" />
+                                Save
+                              </>
+                            )}
                           </Button>
                         </div>
                       </div>
