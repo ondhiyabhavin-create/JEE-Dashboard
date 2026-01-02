@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const Test = require('../models/Test');
+const StudentTestResult = require('../models/StudentTestResult');
 const { parseExcelFile } = require('../controllers/excelUpload');
 
 // Configure multer for file uploads
@@ -34,11 +35,30 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
 
-// Get all tests
+// Get all tests with pagination
 router.get('/', async (req, res) => {
   try {
-    const tests = await Test.find().sort({ testDate: -1 }).lean(); // Use lean() for better performance
-    res.json(tests);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 18;
+    const skip = (page - 1) * limit;
+
+    const tests = await Test.find()
+      .sort({ testDate: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(); // Use lean() for better performance
+
+    const total = await Test.countDocuments();
+
+    res.json({
+      tests,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -128,7 +148,53 @@ router.delete('/:id', async (req, res) => {
     if (!test) {
       return res.status(404).json({ error: 'Test not found' });
     }
+    
+    // Also delete all related test results
+    await StudentTestResult.deleteMany({ testId: req.params.id });
+    
     res.json({ message: 'Test deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Batch delete tests
+router.post('/batch-delete', async (req, res) => {
+  try {
+    const { testIds } = req.body;
+    
+    if (!testIds || !Array.isArray(testIds) || testIds.length === 0) {
+      return res.status(400).json({ error: 'testIds array is required' });
+    }
+
+    // Delete all related test results first
+    await StudentTestResult.deleteMany({ testId: { $in: testIds } });
+    
+    // Delete the tests
+    const result = await Test.deleteMany({ _id: { $in: testIds } });
+    
+    res.json({ 
+      message: `${result.deletedCount} test(s) deleted successfully`,
+      deletedCount: result.deletedCount
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete all tests
+router.delete('/', async (req, res) => {
+  try {
+    // Delete all test results first
+    await StudentTestResult.deleteMany({});
+    
+    // Delete all tests
+    const result = await Test.deleteMany({});
+    
+    res.json({ 
+      message: `All ${result.deletedCount} test(s) deleted successfully`,
+      deletedCount: result.deletedCount
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

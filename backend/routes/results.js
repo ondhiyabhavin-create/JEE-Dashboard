@@ -102,11 +102,6 @@ const updateSubtopicCounts = async (studentId, waitForCompletion = false) => {
       );
     }
     
-    console.log(`✅ Updated counts for student ${studentId}:`, {
-      totalSubtopics: Object.keys(counts).length,
-      totalNegative: Object.values(counts).reduce((sum, c) => sum + c.negative, 0),
-      totalUnattempted: Object.values(counts).reduce((sum, c) => sum + c.unattempted, 0)
-    });
   } catch (error) {
     console.error('Error updating subtopic counts:', error);
     if (waitForCompletion) {
@@ -171,92 +166,83 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Update result (for editing topic/subtopic and remarks)
+// Update result (for editing questions and remarks)
 router.put('/:id', async (req, res) => {
   try {
-    // Fetch existing result first to preserve all data
-    const existingResult = await StudentTestResult.findById(req.params.id);
-    if (!existingResult) {
+    const result = await StudentTestResult.findById(req.params.id);
+    if (!result) {
       return res.status(404).json({ error: 'Result not found' });
     }
 
-    console.log('📥 Received update request:', {
-      body: req.body,
-      existingPhysics: existingResult.physics,
-      existingChemistry: existingResult.chemistry,
-      existingMaths: existingResult.maths
-    });
-
-    // Build update object using $set operator for proper nested updates
-    const updateFields = {};
-    
-    // If updating a specific subject, merge that subject's data properly
-    if (req.body.physics || req.body.chemistry || req.body.maths) {
-      ['physics', 'chemistry', 'maths'].forEach(subject => {
-        if (req.body[subject]) {
-          const existingSubject = existingResult[subject] || {};
-          const newSubjectData = req.body[subject];
-          
-          // Merge subject data, ensuring arrays are properly replaced
-          const mergedSubject = {
-            right: newSubjectData.right !== undefined ? newSubjectData.right : existingSubject.right,
-            wrong: newSubjectData.wrong !== undefined ? newSubjectData.wrong : existingSubject.wrong,
-            unattempted: newSubjectData.unattempted !== undefined ? newSubjectData.unattempted : existingSubject.unattempted,
-            score: newSubjectData.score !== undefined ? newSubjectData.score : existingSubject.score,
-            // Arrays should be replaced if provided, otherwise keep existing
-            unattemptedQuestions: newSubjectData.unattemptedQuestions !== undefined 
-              ? newSubjectData.unattemptedQuestions 
-              : existingSubject.unattemptedQuestions || [],
-            negativeQuestions: newSubjectData.negativeQuestions !== undefined 
-              ? newSubjectData.negativeQuestions 
-              : existingSubject.negativeQuestions || []
-          };
-          
-          updateFields[subject] = mergedSubject;
-          
-          console.log(`📝 Merged ${subject} data:`, {
-            existing: existingSubject,
-            new: newSubjectData,
-            merged: mergedSubject
-          });
-        }
-      });
+    // Update subject data if provided
+    if (req.body.physics) {
+      result.physics = {
+        right: req.body.physics.right !== undefined ? req.body.physics.right : (result.physics.right || 0),
+        wrong: req.body.physics.wrong !== undefined ? req.body.physics.wrong : (result.physics.wrong || 0),
+        unattempted: req.body.physics.unattempted !== undefined ? req.body.physics.unattempted : (result.physics.unattempted || 0),
+        score: req.body.physics.score !== undefined ? req.body.physics.score : (result.physics.score || 0),
+        unattemptedQuestions: Array.isArray(req.body.physics.unattemptedQuestions) 
+          ? req.body.physics.unattemptedQuestions 
+          : (result.physics.unattemptedQuestions || []),
+        negativeQuestions: Array.isArray(req.body.physics.negativeQuestions) 
+          ? req.body.physics.negativeQuestions 
+          : (result.physics.negativeQuestions || [])
+      };
     }
-    
-    // Handle remarks update
+
+    if (req.body.chemistry) {
+      result.chemistry = {
+        right: req.body.chemistry.right !== undefined ? req.body.chemistry.right : (result.chemistry.right || 0),
+        wrong: req.body.chemistry.wrong !== undefined ? req.body.chemistry.wrong : (result.chemistry.wrong || 0),
+        unattempted: req.body.chemistry.unattempted !== undefined ? req.body.chemistry.unattempted : (result.chemistry.unattempted || 0),
+        score: req.body.chemistry.score !== undefined ? req.body.chemistry.score : (result.chemistry.score || 0),
+        unattemptedQuestions: Array.isArray(req.body.chemistry.unattemptedQuestions) 
+          ? req.body.chemistry.unattemptedQuestions 
+          : (result.chemistry.unattemptedQuestions || []),
+        negativeQuestions: Array.isArray(req.body.chemistry.negativeQuestions) 
+          ? req.body.chemistry.negativeQuestions 
+          : (result.chemistry.negativeQuestions || [])
+      };
+    }
+
+    if (req.body.maths) {
+      result.maths = {
+        right: req.body.maths.right !== undefined ? req.body.maths.right : (result.maths.right || 0),
+        wrong: req.body.maths.wrong !== undefined ? req.body.maths.wrong : (result.maths.wrong || 0),
+        unattempted: req.body.maths.unattempted !== undefined ? req.body.maths.unattempted : (result.maths.unattempted || 0),
+        score: req.body.maths.score !== undefined ? req.body.maths.score : (result.maths.score || 0),
+        unattemptedQuestions: Array.isArray(req.body.maths.unattemptedQuestions) 
+          ? req.body.maths.unattemptedQuestions 
+          : (result.maths.unattemptedQuestions || []),
+        negativeQuestions: Array.isArray(req.body.maths.negativeQuestions) 
+          ? req.body.maths.negativeQuestions 
+          : (result.maths.negativeQuestions || [])
+      };
+    }
+
+    // Update remarks if provided
     if (req.body.remarks !== undefined) {
-      updateFields.remarks = req.body.remarks;
+      result.remarks = req.body.remarks;
     }
 
-    console.log('📤 Update fields:', updateFields);
-
-    // Update the document using $set to ensure proper nested updates
-    const result = await StudentTestResult.findByIdAndUpdate(
-      req.params.id,
-      { $set: updateFields },
-      { new: true, runValidators: true }
-    );
-    
-    console.log('✅ Updated result:', {
-      physics: result.physics,
-      chemistry: result.chemistry,
-      maths: result.maths
-    });
+    // Save the document
+    await result.save();
     
     // Populate student and test data
     await result.populate('studentId', 'rollNumber name batch');
     await result.populate('testId', 'testName testDate maxMarks');
     
-    // Update subtopic counts in background (don't wait - return response immediately)
+    // Update subtopic counts in background
     if (result.studentId) {
-      updateSubtopicCounts(result.studentId, false).catch(err => {
+      const studentId = result.studentId._id || result.studentId;
+      updateSubtopicCounts(studentId, false).catch(err => {
         console.error('Background count update failed:', err);
       });
     }
     
     res.json(result);
   } catch (error) {
-    console.error('❌ Update result error:', error);
+    console.error('Update result error:', error);
     res.status(400).json({ error: error.message });
   }
 });

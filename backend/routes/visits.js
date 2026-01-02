@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const Visit = require('../models/Visit');
 const { check24HourReminders, check6HourReminders, sendInstantReminder } = require('../services/visitNotificationService');
+const { sendVisitCancellation } = require('../utils/emailService');
+const User = require('../models/User');
 
 // Get all visits for a student
 router.get('/student/:studentId', async (req, res) => {
@@ -122,12 +124,46 @@ router.put('/:id', async (req, res) => {
 // Delete visit
 router.delete('/:id', async (req, res) => {
   try {
-    const visit = await Visit.findByIdAndDelete(req.params.id);
+    // Find and populate student before deleting
+    const visit = await Visit.findById(req.params.id).populate('studentId', 'name email');
+    
     if (!visit) {
       return res.status(404).json({ error: 'Visit not found' });
     }
+
+    // Send cancellation email if student has email
+    if (visit.studentId && visit.studentId.email) {
+      try {
+        // Get header name for email
+        const headerUser = await User.findOne().select('headerName').sort({ updatedAt: -1 });
+        const headerName = headerUser?.headerName || 'Spectrum Student Data';
+        
+        console.log(`📧 Sending cancellation email to ${visit.studentId.email} for visit ${visit._id}...`);
+        
+        await sendVisitCancellation(
+          visit.studentId.email,
+          visit.studentId.name,
+          visit.visitDate,
+          visit.visitTime || '10:00',
+          headerName
+        );
+        
+        console.log(`✅ Cancellation email sent successfully to ${visit.studentId.email}`);
+      } catch (emailError) {
+        // Don't fail the delete if email fails, but log it
+        console.error('❌ Error sending cancellation email:', emailError);
+        console.error('   Visit will still be deleted');
+      }
+    } else {
+      console.log(`⏭️  Skipping cancellation email for visit ${visit._id}: Student email not found`);
+    }
+
+    // Delete the visit
+    await Visit.findByIdAndDelete(req.params.id);
+    
     res.json({ message: 'Visit deleted successfully' });
   } catch (error) {
+    console.error('Error deleting visit:', error);
     res.status(500).json({ error: error.message });
   }
 });

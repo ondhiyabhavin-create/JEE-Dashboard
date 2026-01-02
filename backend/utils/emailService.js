@@ -1,11 +1,11 @@
 const nodemailer = require('nodemailer');
 
-// Create transporter with environment variables for flexibility
+// Create transporter with hardcoded credentials
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: process.env.EMAIL_USER || 'studentsdata27@gmail.com',
-    pass: process.env.EMAIL_PASSWORD || 'jcfhprgbexfkjeji' // App Password (spaces removed)
+    user: 'studentsdata27@gmail.com', // Hardcoded email
+    pass: 'jcfhprgbexfkjeji' // Hardcoded Gmail App Password
   }
 });
 
@@ -27,19 +27,21 @@ transporter.verify((error, success) => {
 // Helper function to get header name from first user (for system emails)
 const getHeaderName = async () => {
   try {
+    // Lazy load User model to avoid circular dependencies
     const User = require('../models/User');
-    const user = await User.findOne().select('headerName').sort({ updatedAt: -1 });
+    const user = await User.findOne().select('headerName').sort({ updatedAt: -1 }).lean();
     return user?.headerName || 'Spectrum Student Data';
   } catch (error) {
     console.error('Error fetching header name:', error);
+    // Return default if there's any error (database not connected, etc.)
     return 'Spectrum Student Data';
   }
 };
 
 // Send password reset OTP email
 const sendPasswordResetOTP = async (email, otp, headerName = null) => {
-  const fromName = headerName || await getHeaderName();
-  const fromEmail = process.env.EMAIL_USER || 'studentsdata27@gmail.com';
+  const fromName = headerName !== null && headerName !== undefined ? headerName : await getHeaderName();
+  const fromEmail = 'studentsdata27@gmail.com'; // Hardcoded email
   const mailOptions = {
     from: `"${fromName}" <${fromEmail}>`,
     to: email,
@@ -72,8 +74,8 @@ const sendPasswordResetOTP = async (email, otp, headerName = null) => {
 
 // Send password changed confirmation
 const sendPasswordChangedEmail = async (email, name, headerName = null) => {
-  const fromName = headerName || await getHeaderName();
-  const fromEmail = process.env.EMAIL_USER || 'studentsdata27@gmail.com';
+  const fromName = headerName !== null && headerName !== undefined ? headerName : await getHeaderName();
+  const fromEmail = 'studentsdata27@gmail.com'; // Hardcoded email
   const mailOptions = {
     from: `"${fromName}" <${fromEmail}>`,
     to: email,
@@ -121,57 +123,23 @@ const sendVisitReminder = async (email, studentName, visitDate, visitTime, remin
     return `${displayHour}:${minutes} ${ampm}`;
   };
 
-  // Calculate time until visit if not provided
-  let timeUntil;
-  if (hoursUntil !== null) {
-    // Use provided hours until, format appropriately
-    if (hoursUntil >= 1) {
-      const hours = Math.floor(hoursUntil);
-      const minutes = Math.floor((hoursUntil - hours) * 60);
-      if (minutes > 0) {
-        timeUntil = `${hours} hour${hours !== 1 ? 's' : ''} and ${minutes} minute${minutes !== 1 ? 's' : ''}`;
-      } else {
-        timeUntil = `${hours} hour${hours !== 1 ? 's' : ''}`;
-      }
-    } else {
-      const minutes = Math.floor(hoursUntil * 60);
-      timeUntil = `${minutes} minute${minutes !== 1 ? 's' : ''}`;
-    }
-  } else {
-    // Default to reminder type
-    if (reminderType === 'instant') {
-      timeUntil = 'just now'; // Will be overridden by hoursUntil if provided
-    } else {
-      timeUntil = reminderType === '24h' ? '24 hours' : '6 hours';
-    }
-  }
-
-  // Determine next reminder message based on hours until and reminder type
-  let nextReminder;
+  const fromName = headerName !== null && headerName !== undefined ? headerName : await getHeaderName();
+  const fromEmail = 'studentsdata27@gmail.com'; // Hardcoded email
+  
+  // Determine subject line based on reminder type
+  let subjectLine;
   if (reminderType === 'instant') {
-    if (hoursUntil !== null) {
-      if (hoursUntil >= 24) {
-        nextReminder = 'You will receive reminders 24 hours and 6 hours before your scheduled visit.';
-      } else if (hoursUntil >= 6) {
-        nextReminder = 'You will receive another reminder 6 hours before your scheduled visit.';
-      } else {
-        nextReminder = 'This is your final reminder before your visit.';
-      }
-    } else {
-      nextReminder = 'You will receive reminders 24 hours and 6 hours before your scheduled visit.';
-    }
+    subjectLine = `Academic Visit Confirmation - ${formatDate(visitDate)} at ${formatTime(visitTime)}`;
   } else if (reminderType === '24h') {
-    nextReminder = 'You will receive another reminder 6 hours before your scheduled visit.';
+    subjectLine = `Academic Visit Reminder - ${formatDate(visitDate)} at ${formatTime(visitTime)}`;
   } else {
-    nextReminder = 'This is your final reminder before your visit.';
+    subjectLine = `Academic Visit Reminder - ${formatDate(visitDate)} at ${formatTime(visitTime)}`;
   }
-
-  const fromName = headerName || await getHeaderName();
-  const fromEmail = process.env.EMAIL_USER || 'studentsdata27@gmail.com';
+  
   const mailOptions = {
     from: `"${fromName}" <${fromEmail}>`,
     to: email,
-    subject: `Visit Reminder - ${timeUntil} before your scheduled visit`,
+    subject: subjectLine,
     html: `
       <!DOCTYPE html>
       <html lang="en">
@@ -192,7 +160,7 @@ const sendVisitReminder = async (email, studentName, visitDate, visitTime, remin
                       Visit Reminder
                     </h1>
                     <p style="margin: 10px 0 0 0; color: rgba(255, 255, 255, 0.9); font-size: 16px;">
-                      ${timeUntil} before your scheduled visit
+                      Your scheduled visit details
                     </p>
                   </td>
                 </tr>
@@ -203,14 +171,26 @@ const sendVisitReminder = async (email, studentName, visitDate, visitTime, remin
                     <p style="margin: 0 0 20px 0; color: #374151; font-size: 16px; line-height: 1.6;">
                       Hello <strong style="color: #667eea;">${studentName}</strong>,
                     </p>
+                    
+                    <p style="margin: 0 0 20px 0; color: #374151; font-size: 16px; line-height: 1.6;">
+                      This email is to confirm the scheduled academic visit planned for you.
+                    </p>
+                    
+                    <p style="margin: 0 0 20px 0; color: #6b7280; font-size: 16px; line-height: 1.6;">
+                      As discussed, the purpose of this visit is to review your JEE preparation, discuss concepts, and work through the problems and doubts you are currently facing in your learning process. The session is intended to provide guidance and clarification to support your ongoing studies.
+                    </p>
+                    
                     <p style="margin: 0 0 30px 0; color: #6b7280; font-size: 16px; line-height: 1.6;">
-                      This is a friendly reminder that you have a scheduled visit coming up. Please make sure you are prepared.
+                      Please find the visit timing details below. We look forward to meeting you at the scheduled time and assisting you with your preparation.
                     </p>
                     
                     <!-- Visit Details Card -->
                     <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 30px; margin: 30px 0;">
                       <tr>
                         <td style="text-align: center;">
+                          <p style="margin: 0 0 15px 0; color: rgba(255, 255, 255, 0.9); font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">
+                            Expected Visit Timing
+                          </p>
                           <h2 style="margin: 0 0 10px 0; color: #ffffff; font-size: 24px; font-weight: 600;">
                             ${formatDate(visitDate)}
                           </h2>
@@ -254,11 +234,8 @@ const sendVisitReminder = async (email, studentName, visitDate, visitTime, remin
                     
                     <!-- Footer Note -->
                     <div style="border-top: 1px solid #e5e7eb; padding-top: 30px; margin-top: 30px;">
-                      <p style="margin: 0 0 10px 0; color: #9ca3af; font-size: 13px; line-height: 1.6; text-align: center;">
-                        ${nextReminder}
-                      </p>
                       <p style="margin: 0; color: #9ca3af; font-size: 12px; line-height: 1.6; text-align: center;">
-                        This is an automated reminder from ${fromName}. If you have any questions, please contact your administrator.
+                        This is an automated reminder from ${fromName}. If you have any questions or need to reschedule, please contact your administrator.
                       </p>
                     </div>
                   </td>
@@ -291,9 +268,137 @@ const sendVisitReminder = async (email, studentName, visitDate, visitTime, remin
   }
 };
 
+// Send visit cancellation email
+const sendVisitCancellation = async (email, studentName, visitDate, visitTime, headerName = null) => {
+  const formatDate = (date) => {
+    return new Date(date).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const formatTime = (time) => {
+    if (!time) return '10:00 AM';
+    const [hours, minutes] = time.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:${minutes} ${ampm}`;
+  };
+
+  const fromName = headerName !== null && headerName !== undefined ? headerName : await getHeaderName();
+  const fromEmail = 'studentsdata27@gmail.com'; // Hardcoded email
+  const mailOptions = {
+    from: `"${fromName}" <${fromEmail}>`,
+    to: email,
+    subject: `Visit Cancelled - ${fromName}`,
+    html: `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Visit Cancelled</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f3f4f6; padding: 20px 0;">
+          <tr>
+            <td align="center" style="padding: 20px 0;">
+              <table role="presentation" style="width: 100%; max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                <!-- Header with Red Gradient -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 40px 30px; text-align: center;">
+                    <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">
+                      Visit Cancelled
+                    </h1>
+                    <p style="margin: 10px 0 0 0; color: rgba(255, 255, 255, 0.9); font-size: 16px;">
+                      Your scheduled visit has been cancelled
+                    </p>
+                  </td>
+                </tr>
+                
+                <!-- Main Content -->
+                <tr>
+                  <td style="padding: 40px 30px;">
+                    <p style="margin: 0 0 20px 0; color: #374151; font-size: 16px; line-height: 1.6;">
+                      Hello <strong style="color: #ef4444;">${studentName}</strong>,
+                    </p>
+                    <p style="margin: 0 0 30px 0; color: #6b7280; font-size: 16px; line-height: 1.6;">
+                      We regret to inform you that your scheduled visit has been cancelled. Please see the details below.
+                    </p>
+                    
+                    <!-- Cancelled Visit Details Card -->
+                    <table role="presentation" style="width: 100%; border-collapse: collapse; background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); border-radius: 12px; padding: 30px; margin: 30px 0; border: 2px solid #ef4444;">
+                      <tr>
+                        <td style="text-align: center;">
+                          <div style="margin-bottom: 15px;">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin: 0 auto;">
+                              <circle cx="12" cy="12" r="10" stroke="#ef4444" stroke-width="2" fill="none"/>
+                              <path d="M12 8v4M12 16h.01" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                          </div>
+                          <h2 style="margin: 0 0 10px 0; color: #991b1b; font-size: 24px; font-weight: 600;">
+                            ${formatDate(visitDate)}
+                          </h2>
+                          <p style="margin: 0; color: #991b1b; font-size: 20px; font-weight: 500;">
+                            ${formatTime(visitTime)}
+                          </p>
+                          <p style="margin: 15px 0 0 0; color: #dc2626; font-size: 16px; font-weight: 600;">
+                            ❌ CANCELLED
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                    
+                    <!-- Information Message -->
+                    <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 30px 0;">
+                      <p style="margin: 0; color: #92400e; font-size: 15px; line-height: 1.6;">
+                        <strong>Note:</strong> If you have any questions about this cancellation or would like to reschedule, please contact your administrator.
+                      </p>
+                    </div>
+                    
+                    <!-- Footer Note -->
+                    <div style="border-top: 1px solid #e5e7eb; padding-top: 30px; margin-top: 30px;">
+                      <p style="margin: 0; color: #9ca3af; font-size: 12px; line-height: 1.6; text-align: center;">
+                        This is an automated notification from ${fromName}. If you have any questions, please contact your administrator.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+                
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f9fafb; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
+                    <p style="margin: 0; color: #9ca3af; font-size: 12px;">
+                      © ${new Date().getFullYear()} ${fromName}. All rights reserved.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Visit cancellation email sent to ${email}:`, info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error(`❌ Error sending visit cancellation email to ${email}:`, error);
+    throw error;
+  }
+};
+
 module.exports = {
   sendPasswordResetOTP,
   sendPasswordChangedEmail,
-  sendVisitReminder
+  sendVisitReminder,
+  sendVisitCancellation
 };
 

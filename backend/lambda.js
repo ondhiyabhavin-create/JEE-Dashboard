@@ -114,6 +114,7 @@ app.use('/api/backlog', require('./routes/backlog'));
 app.use('/api/syllabus', require('./routes/syllabus'));
 app.use('/api/topics', require('./routes/topics'));
 app.use('/api/student-topic-status', require('./routes/studentTopicStatus'));
+app.use('/api/question-records', require('./routes/questionRecords'));
 app.use('/api/whatsapp', require('./routes/whatsapp'));
 
 // Health check (non-blocking)

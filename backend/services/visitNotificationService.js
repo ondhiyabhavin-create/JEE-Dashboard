@@ -17,17 +17,36 @@ const getHeaderName = async () => {
 
 /**
  * Calculate the exact datetime for a visit by combining date and time
+ * All times are in LOCAL timezone to match user's expectations
  */
 const getVisitDateTime = (visitDate, visitTime) => {
-  // Parse the date string (format: YYYY-MM-DD)
-  const [year, month, day] = visitDate.split('-').map(Number);
+  // Handle both Date objects and date strings
+  let year, month, day;
+  
+  if (visitDate instanceof Date) {
+    // Get local date components from the Date object
+    year = visitDate.getFullYear();
+    month = visitDate.getMonth() + 1; // getMonth() returns 0-11
+    day = visitDate.getDate();
+  } else if (typeof visitDate === 'string') {
+    // Parse the date string (format: YYYY-MM-DD)
+    [year, month, day] = visitDate.split('-').map(Number);
+  } else {
+    // Fallback: try to create Date from the value and extract local components
+    const tempDate = new Date(visitDate);
+    year = tempDate.getFullYear();
+    month = tempDate.getMonth() + 1;
+    day = tempDate.getDate();
+  }
+  
   // Parse the time string (format: HH:MM)
   const [hours, minutes] = (visitTime || '10:00').split(':').map(Number);
   
-  // Create a new Date object with the specific date and time in local timezone
+  // Create a new Date object in LOCAL timezone with the exact date and time
   // Note: month is 0-indexed in JavaScript Date constructor
-  const date = new Date(year, month - 1, day, hours || 10, minutes || 0, 0, 0);
-  return date;
+  const dateObj = new Date(year, month - 1, day, hours || 10, minutes || 0, 0, 0);
+  
+  return dateObj;
 };
 
 /**
