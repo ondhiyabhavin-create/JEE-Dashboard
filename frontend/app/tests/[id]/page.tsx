@@ -52,32 +52,41 @@ export default function TestDetailPage() {
   const fetchSubtopics = async () => {
     try {
       const response = await syllabusApi.getGroupedSubtopics();
-      console.log('Subtopics API response:', response);
-      console.log('Response data:', response.data);
+      console.log('🔍 Full API response:', response);
+      console.log('🔍 Response.data:', response.data);
       
-      // Handle different response structures
+      // Axios wraps the response, so response.data is the actual response body
+      // Backend returns: { success: true, data: { Physics: [], Chemistry: [], Mathematics: [] } }
       let data = null;
+      
       if (response.data) {
-        if (response.data.success && response.data.data) {
+        // Check if it's the wrapped structure
+        if (response.data.success === true && response.data.data) {
           data = response.data.data;
-        } else if (response.data.Physics || response.data.Chemistry || response.data.Mathematics) {
-          // Direct data structure
+          console.log('✅ Found data in response.data.data');
+        } 
+        // Check if it's direct structure (shouldn't happen but just in case)
+        else if (response.data.Physics || response.data.Chemistry || response.data.Mathematics) {
           data = response.data;
+          console.log('✅ Found data directly in response.data');
         }
       }
       
       if (data) {
-        console.log('Setting grouped subtopics:', data);
-        console.log('Physics count:', data.Physics?.length || 0);
-        console.log('Chemistry count:', data.Chemistry?.length || 0);
-        console.log('Mathematics count:', data.Mathematics?.length || 0);
+        console.log('📊 Setting grouped subtopics:', {
+          Physics: data.Physics?.length || 0,
+          Chemistry: data.Chemistry?.length || 0,
+          Mathematics: data.Mathematics?.length || 0,
+          fullData: data
+        });
         setGroupedSubtopics(data);
       } else {
-        console.error('No valid data in API response:', response.data);
+        console.error('❌ No valid data found. Response structure:', JSON.stringify(response.data, null, 2));
       }
     } catch (error: any) {
-      console.error('Failed to fetch subtopics:', error);
-      console.error('Error details:', error.response?.data || error.message);
+      console.error('❌ Failed to fetch subtopics:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error message:', error.message);
     }
   };
 
@@ -555,7 +564,17 @@ export default function TestDetailPage() {
                                   subject={subject.name as 'Physics' | 'Chemistry' | 'Mathematics'}
                                   value={questionData.subtopic}
                                   onChange={(value) => setQuestionData({ ...questionData, subtopic: value })}
-                                  options={groupedSubtopics[subject.name as keyof typeof groupedSubtopics] || []}
+                                  options={(() => {
+                                    const subjectKey = subject.name as keyof typeof groupedSubtopics;
+                                    const opts = groupedSubtopics[subjectKey] || [];
+                                    console.log(`🔍 Rendering SubtopicSelector for ${subject.name}:`, {
+                                      subjectKey,
+                                      optionsCount: opts.length,
+                                      options: opts.slice(0, 3), // Show first 3
+                                      allKeys: Object.keys(groupedSubtopics)
+                                    });
+                                    return opts;
+                                  })()}
                                   className="w-64"
                                 />
                                 <Button
@@ -637,7 +656,17 @@ export default function TestDetailPage() {
                                   subject={subject.name as 'Physics' | 'Chemistry' | 'Mathematics'}
                                   value={questionData.subtopic}
                                   onChange={(value) => setQuestionData({ ...questionData, subtopic: value })}
-                                  options={groupedSubtopics[subject.name as keyof typeof groupedSubtopics] || []}
+                                  options={(() => {
+                                    const subjectKey = subject.name as keyof typeof groupedSubtopics;
+                                    const opts = groupedSubtopics[subjectKey] || [];
+                                    console.log(`🔍 Rendering SubtopicSelector for ${subject.name}:`, {
+                                      subjectKey,
+                                      optionsCount: opts.length,
+                                      options: opts.slice(0, 3), // Show first 3
+                                      allKeys: Object.keys(groupedSubtopics)
+                                    });
+                                    return opts;
+                                  })()}
                                   className="w-64"
                                 />
                                 <Button

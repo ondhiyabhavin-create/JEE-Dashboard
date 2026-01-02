@@ -35,7 +35,11 @@ export default function SubtopicSelector({
 
   // Debug logging
   useEffect(() => {
-    console.log(`SubtopicSelector for ${subject}:`, options.length, 'options', options);
+    console.log(`🎯 SubtopicSelector for ${subject}:`, {
+      optionsCount: options.length,
+      options: options,
+      firstOption: options[0]
+    });
   }, [subject, options]);
 
   // Filter options based on search query
