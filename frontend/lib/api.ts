@@ -267,6 +267,15 @@ export const studentTopicStatusApi = {
   refreshCounts: (studentId: string) => api.post(`/student-topic-status/student/${studentId}/refresh-counts`),
 };
 
+// Question Records API - Simple table for storing questions
+export const questionRecordsApi = {
+  add: (data: { studentId: string; testId: string; subject: string; type: 'negative' | 'unattempted'; questionNumber: number; subtopic: string }) =>
+    api.post('/question-records', data),
+  delete: (id: string) => api.delete(`/question-records/${id}`),
+  getByStudent: (studentId: string) => api.get(`/question-records/student/${studentId}`),
+  getByResult: (resultId: string) => api.get(`/question-records/result/${resultId}`),
+};
+
 // WhatsApp API
 export const whatsappApi = {
   configure: (data: { accountSid?: string; authToken?: string; fromNumber: string; provider?: string }) =>

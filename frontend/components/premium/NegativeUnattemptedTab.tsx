@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { XCircle, AlertCircle, BookOpen, TrendingDown } from 'lucide-react';
-import { syllabusApi, studentTopicStatusApi, resultsApi } from '@/lib/api';
+import { syllabusApi, studentTopicStatusApi, questionRecordsApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -32,25 +32,18 @@ interface StudentTopicStatus {
   unattemptedCount?: number;
 }
 
-interface TestResult {
+interface QuestionRecord {
   _id: string;
+  studentId: string;
   testId: {
     _id: string;
     testName: string;
     testDate: string;
   };
-  physics?: {
-    negativeQuestions?: Array<{ questionNumber: number; subtopic: string }>;
-    unattemptedQuestions?: Array<{ questionNumber: number; subtopic: string }>;
-  };
-  chemistry?: {
-    negativeQuestions?: Array<{ questionNumber: number; subtopic: string }>;
-    unattemptedQuestions?: Array<{ questionNumber: number; subtopic: string }>;
-  };
-  maths?: {
-    negativeQuestions?: Array<{ questionNumber: number; subtopic: string }>;
-    unattemptedQuestions?: Array<{ questionNumber: number; subtopic: string }>;
-  };
+  subject: string;
+  type: 'negative' | 'unattempted';
+  questionNumber: number;
+  subtopic: string;
 }
 
 interface NegativeUnattemptedTabProps {
@@ -60,7 +53,7 @@ interface NegativeUnattemptedTabProps {
 export default function NegativeUnattemptedTab({ studentId }: NegativeUnattemptedTabProps) {
   const [syllabus, setSyllabus] = useState<SyllabusItem[]>([]);
   const [statuses, setStatuses] = useState<StudentTopicStatus[]>([]);
-  const [testResults, setTestResults] = useState<TestResult[]>([]);
+  const [questionRecords, setQuestionRecords] = useState<QuestionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState<'negative' | 'unattempted' | 'all'>('all');
   const { toasts, error: showError, removeToast } = useToast();
@@ -73,20 +66,20 @@ export default function NegativeUnattemptedTab({ studentId }: NegativeUnattempte
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [syllabusRes, statusesRes, resultsRes] = await Promise.all([
+      const [syllabusRes, statusesRes, questionsRes] = await Promise.all([
         syllabusApi.getAll(),
         studentTopicStatusApi.getByStudent(studentId),
-        resultsApi.getByStudent(studentId),
+        questionRecordsApi.getByStudent(studentId),
       ]);
       
       // Handle response structure
       const syllabusData = Array.isArray(syllabusRes.data) ? syllabusRes.data : (syllabusRes.data?.data || []);
       const statusesData = Array.isArray(statusesRes.data) ? statusesRes.data : (statusesRes.data?.data || []);
-      const resultsData = Array.isArray(resultsRes.data) ? resultsRes.data : (resultsRes.data?.results || []);
+      const questionsData = questionsRes.data?.success ? (questionsRes.data.data || []) : [];
       
       setSyllabus(syllabusData);
       setStatuses(statusesData);
-      setTestResults(resultsData);
+      setQuestionRecords(questionsData);
     } catch (err: any) {
       console.error('Failed to fetch data:', err);
       showError('Failed to load negative/unattempted data');
@@ -102,27 +95,20 @@ export default function NegativeUnattemptedTab({ studentId }: NegativeUnattempte
   };
 
   const getQuestionsForSubtopic = (subject: string, subtopicName: string, type: 'negative' | 'unattempted') => {
-    const subjectKey = subject.toLowerCase() as 'physics' | 'chemistry' | 'maths';
     const questions: Array<{ testName: string; testDate: string; questionNumber: number }> = [];
     
-    testResults.forEach(result => {
-      const subjectData = result[subjectKey];
-      if (!subjectData) return;
-      
-      const questionArray = type === 'negative' 
-        ? subjectData.negativeQuestions || []
-        : subjectData.unattemptedQuestions || [];
-      
-      questionArray.forEach(q => {
-        if (q.subtopic && q.subtopic.trim() === subtopicName.trim()) {
-          const testId = result.testId;
-          questions.push({
-            testName: (typeof testId === 'object' && testId?.testName) ? testId.testName : 'Unknown Test',
-            testDate: (typeof testId === 'object' && testId?.testDate) ? testId.testDate : '',
-            questionNumber: q.questionNumber
-          });
-        }
-      });
+    questionRecords.forEach(record => {
+      if (record.subject === subject && 
+          record.type === type && 
+          record.subtopic && 
+          record.subtopic.trim() === subtopicName.trim()) {
+        const testId = record.testId;
+        questions.push({
+          testName: (typeof testId === 'object' && testId?.testName) ? testId.testName : 'Unknown Test',
+          testDate: (typeof testId === 'object' && testId?.testDate) ? testId.testDate : '',
+          questionNumber: record.questionNumber
+        });
+      }
     });
     
     return questions;

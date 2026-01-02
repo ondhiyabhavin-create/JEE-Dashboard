@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Award, Calendar, X, FileText, Edit2, Save, Trash2, Plus, XCircle, Search, Loader2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
-import { testsApi, resultsApi, syllabusApi, studentTopicStatusApi } from '@/lib/api';
+import { testsApi, resultsApi, syllabusApi, studentTopicStatusApi, questionRecordsApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,7 +41,7 @@ export default function TestDetailPage() {
   const [editingQuestion, setEditingQuestion] = useState<{ type: string; subject: string; index: number } | null>(null);
   const [questionData, setQuestionData] = useState({ questionNumber: '', subtopic: '' });
   const { toasts, success, error: showError, warning: showWarning, removeToast } = useToast();
-  const [deleteQuestionConfirm, setDeleteQuestionConfirm] = useState<{ type: string; subject: string; index: number } | null>(null);
+  const [deleteQuestionConfirm, setDeleteQuestionConfirm] = useState<{ type: string; subject: string; index: number; questionId?: string } | null>(null);
   const [groupedSubtopics, setGroupedSubtopics] = useState<{
     Physics: Array<{ topicName: string; subtopicName: string; _id: string }>;
     Chemistry: Array<{ topicName: string; subtopicName: string; _id: string }>;
@@ -58,6 +58,15 @@ export default function TestDetailPage() {
     };
   }>({});
   const [loadingCounts, setLoadingCounts] = useState(false);
+  const [resultQuestions, setResultQuestions] = useState<{
+    Physics: { negative: Array<{ questionNumber: number; subtopic: string; _id: string }>; unattempted: Array<{ questionNumber: number; subtopic: string; _id: string }> };
+    Chemistry: { negative: Array<{ questionNumber: number; subtopic: string; _id: string }>; unattempted: Array<{ questionNumber: number; subtopic: string; _id: string }> };
+    Mathematics: { negative: Array<{ questionNumber: number; subtopic: string; _id: string }>; unattempted: Array<{ questionNumber: number; subtopic: string; _id: string }> };
+  }>({
+    Physics: { negative: [], unattempted: [] },
+    Chemistry: { negative: [], unattempted: [] },
+    Mathematics: { negative: [], unattempted: [] }
+  });
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -132,15 +141,50 @@ export default function TestDetailPage() {
     }
   }, [selectedResult?.studentId]);
 
+  // Load questions for the selected result from simple table
+  const loadQuestionsForResult = async () => {
+    if (!selectedResult?._id) return;
+    
+    try {
+      const response = await questionRecordsApi.getByResult(selectedResult._id);
+      if (response.data?.success && response.data.data) {
+        setResultQuestions(response.data.data);
+      }
+    } catch (error: any) {
+      console.error('Failed to load questions:', error);
+      // Reset on error
+      setResultQuestions({
+        Physics: { negative: [], unattempted: [] },
+        Chemistry: { negative: [], unattempted: [] },
+        Mathematics: { negative: [], unattempted: [] }
+      });
+    }
+  };
+
+  // Track which result we've fetched counts for
+  const [countsFetchedFor, setCountsFetchedFor] = useState<string | null>(null);
+
   useEffect(() => {
     if (selectedResult) {
       setRemarks(selectedResult.remarks || '');
-      // Fetch subtopic counts for this student
-      fetchSubtopicCounts();
+      // Load questions from simple table
+      loadQuestionsForResult();
+      // Only fetch counts once when modal opens for a new result
+      const resultId = selectedResult._id;
+      if (resultId !== countsFetchedFor) {
+        fetchSubtopicCounts();
+        setCountsFetchedFor(resultId);
+      }
     } else {
       setSubtopicCounts({});
+      setCountsFetchedFor(null);
+      setResultQuestions({
+        Physics: { negative: [], unattempted: [] },
+        Chemistry: { negative: [], unattempted: [] },
+        Mathematics: { negative: [], unattempted: [] }
+      });
     }
-  }, [selectedResult, fetchSubtopicCounts]);
+  }, [selectedResult?._id]);
 
   const fetchData = async (signal?: AbortSignal, pageNum: number = 1) => {
     try {
@@ -299,177 +343,67 @@ export default function TestDetailPage() {
     setIsSaving(true);
     
     try {
-      const subjectKey = subject.toLowerCase() as 'physics' | 'chemistry' | 'maths';
-      const currentData = selectedResult[subjectKey] || {};
-      const questions = currentData[`${type}Questions`] || [];
-      
-      // Check for duplicate question
       const questionNum = parseInt(questionData.questionNumber);
-      const isDuplicate = questions.some((q: any) => 
-        q.questionNumber === questionNum && q.subtopic === questionData.subtopic
-      );
-      
-      if (isDuplicate) {
-        showWarning('This question is already added');
-        return;
-      }
-      
-      const updatedQuestions = [...questions, {
+      const studentId = typeof selectedResult.studentId === 'string' 
+        ? selectedResult.studentId 
+        : selectedResult.studentId._id || selectedResult.studentId.toString();
+      const testId = typeof selectedResult.testId === 'string' 
+        ? selectedResult.testId 
+        : selectedResult.testId._id || selectedResult.testId.toString();
+
+      // Use simple API to add question
+      const response = await questionRecordsApi.add({
+        studentId,
+        testId,
+        subject,
+        type,
         questionNumber: questionNum,
         subtopic: questionData.subtopic.trim()
-      }];
+      });
 
-      const updateData = {
-        [subjectKey]: {
-          right: currentData.right || 0,
-          wrong: currentData.wrong || 0,
-          unattempted: currentData.unattempted || 0,
-          score: currentData.score || 0,
-          unattemptedQuestions: type === 'unattempted' ? updatedQuestions : (currentData.unattemptedQuestions || []),
-          negativeQuestions: type === 'negative' ? updatedQuestions : (currentData.negativeQuestions || [])
-        }
-      };
-
-      const response = await resultsApi.update(selectedResult._id, updateData);
-      const updatedResultData = response.data;
-      
-      // Update selected result immediately - use a fresh object to trigger React re-render
-      const freshResult = JSON.parse(JSON.stringify(updatedResultData));
-      setSelectedResult(freshResult);
-      
-      // Update the result in the results list
-      setResults(prevResults => 
-        prevResults.map(r => 
-          r._id === selectedResult._id ? freshResult : r
-        )
-      );
-      setAllResults(prevAllResults => 
-        prevAllResults.map(r => 
-          r._id === selectedResult._id ? freshResult : r
-        )
-      );
-      
-      // Show success notification IMMEDIATELY (before resetting form)
+      // Show success notification
       success('Question added successfully!');
+      
+      // Reload questions for this result
+      await loadQuestionsForResult();
       
       // Reset form
       setEditingQuestion(null);
       setQuestionData({ questionNumber: '', subtopic: '' });
-      
-      // Refresh counts in background (don't wait for it)
-      if (updatedResultData.studentId) {
-        const studentId = typeof updatedResultData.studentId === 'string' 
-          ? updatedResultData.studentId 
-          : updatedResultData.studentId._id || updatedResultData.studentId.toString();
-        
-        if (studentId) {
-          // Run in background, don't await
-          studentTopicStatusApi.refreshCounts(studentId)
-            .then((countResponse) => {
-              if (countResponse.data?.success && countResponse.data.data) {
-                const grouped: typeof subtopicCounts = {};
-                countResponse.data.data.forEach((status: any) => {
-                  if (!grouped[status.subject]) grouped[status.subject] = {};
-                  if (!grouped[status.subject][status.topicName]) grouped[status.subject][status.topicName] = {};
-                  grouped[status.subject][status.topicName][status.subtopicName] = {
-                    negative: status.negativeCount || 0,
-                    unattempted: status.unattemptedCount || 0
-                  };
-                });
-                setSubtopicCounts(grouped);
-              }
-            })
-            .catch((err: any) => {
-              // Silent fail - counts will update eventually
-            });
-        }
-      }
     } catch (error: any) {
-      showError('Failed to add question: ' + (error.response?.data?.error || error.message));
+      const errorMsg = error.response?.data?.error || error.message;
+      if (errorMsg.includes('already recorded')) {
+        showWarning('This question is already added');
+      } else {
+        showError('Failed to add question: ' + errorMsg);
+      }
     } finally {
       setIsSaving(false);
       setSavingButton(null);
     }
   };
 
-  const handleDeleteQuestion = async (type: 'unattempted' | 'negative', subject: string, index: number) => {
+  const handleDeleteQuestion = async (type: 'unattempted' | 'negative', subject: string, questionId: string) => {
     if (!selectedResult) return;
-    setDeleteQuestionConfirm({ type, subject, index });
+    setDeleteQuestionConfirm({ type, subject, index: 0, questionId: questionId });
   };
 
   const confirmDeleteQuestion = async () => {
     if (!deleteQuestionConfirm || !selectedResult) return;
-    const { type, subject, index } = deleteQuestionConfirm;
+    const { questionId } = deleteQuestionConfirm as any;
     setDeleteQuestionConfirm(null);
+
+    if (!questionId) return;
 
     setIsSaving(true);
     try {
-      const subjectKey = subject.toLowerCase() as 'physics' | 'chemistry' | 'maths';
-      const currentData = selectedResult[subjectKey] || {};
-      const questions = currentData[`${type}Questions`] || [];
+      await questionRecordsApi.delete(questionId);
       
-      const updatedQuestions = questions.filter((_: any, i: number) => i !== index);
-
-      const updateData = {
-        [subjectKey]: {
-          ...currentData,
-          [`${type}Questions`]: updatedQuestions
-        }
-      };
-
-      const response = await resultsApi.update(selectedResult._id, updateData);
-      const updatedResultData = response.data;
-      
-      // Update selected result - force a new object reference for React to detect change
-      setSelectedResult(JSON.parse(JSON.stringify(updatedResultData)));
-      
-      // Update the result in the results list without refetching all data
-      setResults(prevResults => 
-        prevResults.map(r => 
-          r._id === selectedResult._id ? { ...updatedResultData } : r
-        )
-      );
-      setAllResults(prevAllResults => 
-        prevAllResults.map(r => 
-          r._id === selectedResult._id ? { ...updatedResultData } : r
-        )
-      );
-      
-      // Show success notification immediately
+      // Show success notification
       success('Question deleted successfully!');
       
-      // Refresh counts and update UI in background
-      if (updatedResultData.studentId) {
-        // Get the actual studentId - could be string or object
-        const studentId = typeof updatedResultData.studentId === 'string' 
-          ? updatedResultData.studentId 
-          : updatedResultData.studentId._id || updatedResultData.studentId.toString();
-        
-        if (studentId) {
-          // Refresh counts and update UI
-          studentTopicStatusApi.refreshCounts(studentId)
-            .then((countResponse) => {
-              // Update counts in UI immediately
-              if (countResponse.data?.success && countResponse.data.data) {
-                // Convert array to grouped format
-                const grouped: typeof subtopicCounts = {};
-                countResponse.data.data.forEach((status: any) => {
-                  if (!grouped[status.subject]) grouped[status.subject] = {};
-                  if (!grouped[status.subject][status.topicName]) grouped[status.subject][status.topicName] = {};
-                  grouped[status.subject][status.topicName][status.subtopicName] = {
-                    negative: status.negativeCount || 0,
-                    unattempted: status.unattemptedCount || 0
-                  };
-                });
-                setSubtopicCounts(grouped);
-              }
-            })
-            .catch((err: any) => {
-              console.error('Failed to refresh counts:', err);
-              // Don't show error - counts will update eventually
-            });
-        }
-      }
+      // Reload questions
+      await loadQuestionsForResult();
     } catch (error: any) {
       console.error('Failed to delete question:', error);
       showError('Failed to delete question: ' + (error.response?.data?.error || error.message));
@@ -914,33 +848,36 @@ export default function TestDetailPage() {
                               </Button>
                             )}
                           </div>
-                          {subjectData.unattemptedQuestions?.length > 0 ? (
-                            <div className="space-y-2">
-                              {subjectData.unattemptedQuestions.map((q: any, idx: number) => (
-                                <div
-                                  key={idx}
-                                  className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-lg border border-yellow-200 dark:border-yellow-800"
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <Badge variant="outline" className="font-mono">
-                                      Q{q.questionNumber}
-                                    </Badge>
-                                    <span className="font-medium">{q.subtopic}</span>
-                                  </div>
-                                  <Button
-                                    onClick={() => handleDeleteQuestion('unattempted', subject.name, idx)}
-                                    size="sm"
-                                    variant="ghost"
-                                    className="text-destructive hover:text-destructive"
+                          {(() => {
+                            const questions = resultQuestions[subject.name as keyof typeof resultQuestions]?.unattempted || [];
+                            return questions.length > 0 ? (
+                              <div className="space-y-2">
+                                {questions.map((q) => (
+                                  <div
+                                    key={q._id}
+                                    className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-lg border border-yellow-200 dark:border-yellow-800"
                                   >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground text-center py-4">No unattempted questions recorded</p>
-                          )}
+                                    <div className="flex items-center gap-3">
+                                      <Badge variant="outline" className="font-mono">
+                                        Q{q.questionNumber}
+                                      </Badge>
+                                      <span className="font-medium">{q.subtopic}</span>
+                                    </div>
+                                    <Button
+                                      onClick={() => handleDeleteQuestion('unattempted', subject.name, q._id)}
+                                      size="sm"
+                                      variant="ghost"
+                                      className="text-destructive hover:text-destructive"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-muted-foreground text-center py-4">No unattempted questions recorded</p>
+                            );
+                          })()}
                         </div>
 
                         {/* Negative Questions Box */}
@@ -1010,28 +947,28 @@ export default function TestDetailPage() {
                             )}
                           </div>
                           {(() => {
-                            const negativeQs = subjectData.negativeQuestions || [];
-                            return negativeQs.length > 0 ? (
+                            const questions = resultQuestions[subject.name as keyof typeof resultQuestions]?.negative || [];
+                            return questions.length > 0 ? (
                               <div className="space-y-2">
-                                {negativeQs.map((q: any, idx: number) => (
-                                <div
-                                  key={idx}
-                                  className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-lg border border-red-200 dark:border-red-800"
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <Badge variant="destructive" className="font-mono">
-                                      Q{q.questionNumber}
-                                    </Badge>
-                                    <span className="font-medium">{q.subtopic}</span>
-                                  </div>
-                                  <Button
-                                    onClick={() => handleDeleteQuestion('negative', subject.name, idx)}
-                                    size="sm"
-                                    variant="ghost"
-                                    className="text-destructive hover:text-destructive"
+                                {questions.map((q) => (
+                                  <div
+                                    key={q._id}
+                                    className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-lg border border-red-200 dark:border-red-800"
                                   >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                    <div className="flex items-center gap-3">
+                                      <Badge variant="destructive" className="font-mono">
+                                        Q{q.questionNumber}
+                                      </Badge>
+                                      <span className="font-medium">{q.subtopic}</span>
+                                    </div>
+                                    <Button
+                                      onClick={() => handleDeleteQuestion('negative', subject.name, q._id)}
+                                      size="sm"
+                                      variant="ghost"
+                                      className="text-destructive hover:text-destructive"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
                                   </div>
                                 ))}
                               </div>
