@@ -275,9 +275,20 @@ export default function TestDetailPage() {
       const currentData = selectedResult[subjectKey] || {};
       const questions = currentData[`${type}Questions`] || [];
       
+      // Check for duplicate question
+      const questionNum = parseInt(questionData.questionNumber);
+      const isDuplicate = questions.some((q: any) => 
+        q.questionNumber === questionNum && q.subtopic === questionData.subtopic
+      );
+      
+      if (isDuplicate) {
+        showWarning('This question is already added');
+        return;
+      }
+      
       const updatedQuestions = [...questions, {
-        questionNumber: parseInt(questionData.questionNumber),
-        subtopic: questionData.subtopic
+        questionNumber: questionNum,
+        subtopic: questionData.subtopic.trim()
       }];
 
       const updateData = {
@@ -287,7 +298,16 @@ export default function TestDetailPage() {
         }
       };
 
+      console.log('📤 Sending update data:', {
+        subjectKey,
+        updateData,
+        questionNumber: questionNum,
+        subtopic: questionData.subtopic
+      });
+
       const response = await resultsApi.update(selectedResult._id, updateData);
+      
+      console.log('✅ Update response:', response.data);
       const updatedResultData = response.data;
       
       // Update selected result
