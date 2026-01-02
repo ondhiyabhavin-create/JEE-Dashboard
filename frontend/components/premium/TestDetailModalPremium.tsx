@@ -77,8 +77,8 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
       const response = await resultsApi.update(currentResult._id, { remarks });
       const updatedResultData = response.data;
       
-      // Update current result without refetching
-      setCurrentResult(updatedResultData);
+      // Update current result - force a new object reference for React to detect change
+      setCurrentResult({ ...updatedResultData });
       setIsEditingRemarks(false);
       
       // Show success notification
@@ -115,9 +115,22 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
       const currentData = currentResult[subjectKey] || {};
       const questions = currentData[`${type}Questions`] || [];
       
+      // Check for duplicate question
+      const questionNum = parseInt(questionData.questionNumber);
+      const isDuplicate = questions.some((q: any) => 
+        q.questionNumber === questionNum && q.subtopic === questionData.subtopic.trim()
+      );
+      
+      if (isDuplicate) {
+        setSavingButton(null);
+        setIsSaving(false);
+        showWarning('This question is already added');
+        return;
+      }
+      
       const updatedQuestions = [...questions, {
-        questionNumber: parseInt(questionData.questionNumber),
-        subtopic: questionData.subtopic
+        questionNumber: questionNum,
+        subtopic: questionData.subtopic.trim()
       }];
 
       const updateData = {
@@ -128,12 +141,28 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
       };
 
       const response = await resultsApi.update(currentResult._id, updateData);
+      
+      console.log('✅ Update response:', response);
+      console.log('✅ Update response.data:', response.data);
+      
+      // Handle response - axios wraps it, so response.data is the actual result
       const updatedResultData = response.data;
       
-      // Update current result without refetching
-      setCurrentResult(updatedResultData);
+      // Ensure we have the updated data
+      if (!updatedResultData) {
+        throw new Error('No data returned from server');
+      }
+      
+      console.log('✅ Updated result data:', updatedResultData);
+      console.log('✅ Physics negativeQuestions:', updatedResultData.physics?.negativeQuestions);
+      
+      // Update current result - force a new object reference for React to detect change
+      setCurrentResult({ ...updatedResultData });
       setEditingQuestion(null);
       setQuestionData({ questionNumber: '', subtopic: '' });
+      
+      // Show success notification immediately
+      success('Question added successfully!');
       
       // Refresh counts in background (don't wait - let it run async)
       if (updatedResultData.studentId) {
@@ -149,9 +178,6 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
           });
         }
       }
-      
-      // Show success notification
-      success('Question added successfully!');
       
       // Notify parent component if callback provided
       if (onUpdate) onUpdate();
@@ -191,8 +217,14 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
       const response = await resultsApi.update(currentResult._id, updateData);
       const updatedResultData = response.data;
       
-      // Update current result without refetching
-      setCurrentResult(updatedResultData);
+      console.log('✅ Delete response:', updatedResultData);
+      console.log('✅ Physics negativeQuestions after delete:', updatedResultData.physics?.negativeQuestions);
+      
+      // Update current result - force a new object reference for React to detect change
+      setCurrentResult({ ...updatedResultData });
+      
+      // Show success notification immediately
+      success('Question deleted successfully!');
       
       // Refresh counts in background (don't wait - let it run async)
       if (updatedResultData.studentId) {
@@ -208,9 +240,6 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
           });
         }
       }
-      
-      // Show success notification
-      success('Question deleted successfully!');
       
       // Notify parent component if callback provided
       if (onUpdate) onUpdate();
@@ -310,7 +339,7 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
               const negative = subjectData.wrong || 0;
               
               return (
-                <Card key={subject.name} className={`border-2 ${subject.borderColor}`}>
+                <Card key={`${subject.name}-${currentResult?._id || 'none'}`} className={`border-2 ${subject.borderColor}`}>
                   <CardHeader className={subject.bgColor}>
                     <CardTitle className={`text-xl ${subject.color}`}>{subject.name}</CardTitle>
                   </CardHeader>
