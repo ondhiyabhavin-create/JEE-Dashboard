@@ -2,6 +2,8 @@ service: jee-dashboard-backend
 
 frameworkVersion: '3'
 
+useDotenv: true
+
 provider:
   name: aws
   runtime: nodejs18.x
@@ -67,8 +69,8 @@ functions:
           enabled: true
 
 plugins:
-  - serverless-offline
   - serverless-dotenv-plugin
+  - serverless-offline
 
 custom:
   dotenv:

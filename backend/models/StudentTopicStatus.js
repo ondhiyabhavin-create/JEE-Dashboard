@@ -36,6 +36,10 @@ const studentTopicStatusSchema = new mongoose.Schema({
   negativeCount: {
     type: Number,
     default: 0
+  },
+  unattemptedCount: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true

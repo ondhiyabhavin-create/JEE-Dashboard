@@ -1,6 +1,109 @@
 const express = require('express');
 const router = express.Router();
 const StudentTestResult = require('../models/StudentTestResult');
+const StudentTopicStatus = require('../models/StudentTopicStatus');
+
+// Helper function to update subtopic counts
+const updateSubtopicCounts = async (studentId) => {
+  try {
+    const subjects = ['physics', 'chemistry', 'maths'];
+    const subjectMap = {
+      'physics': 'Physics',
+      'chemistry': 'Chemistry',
+      'maths': 'Mathematics'
+    };
+
+    // Get all test results for this student
+    const allResults = await StudentTestResult.find({ studentId });
+
+    // Get all topics to build a subtopic lookup map
+    const Topic = require('../models/Topic');
+    const allTopics = await Topic.find();
+    
+    // Build a map: subject -> subtopicName -> { topicName, subtopicName }
+    const subtopicMap = {};
+    allTopics.forEach(topic => {
+      topic.subtopics.forEach(subtopic => {
+        const key = `${topic.subject}:${subtopic.name}`;
+        subtopicMap[key] = {
+          subject: topic.subject,
+          topicName: topic.name,
+          subtopicName: subtopic.name
+        };
+      });
+    });
+
+    // Count occurrences across all tests
+    const counts = {};
+
+    allResults.forEach(testResult => {
+      subjects.forEach(subjectKey => {
+        const subjectName = subjectMap[subjectKey];
+        const subjectData = testResult[subjectKey] || {};
+
+        // Count negative questions
+        if (subjectData.negativeQuestions && Array.isArray(subjectData.negativeQuestions)) {
+          subjectData.negativeQuestions.forEach(q => {
+            if (q.subtopic && q.subtopic.trim()) {
+              const key = `${subjectName}:${q.subtopic.trim()}`;
+              if (subtopicMap[key]) {
+                const { topicName, subtopicName } = subtopicMap[key];
+                const countKey = `${subjectName}:${topicName}:${subtopicName}`;
+                if (!counts[countKey]) {
+                  counts[countKey] = { negative: 0, unattempted: 0 };
+                }
+                counts[countKey].negative += 1;
+              }
+            }
+          });
+        }
+
+        // Count unattempted questions
+        if (subjectData.unattemptedQuestions && Array.isArray(subjectData.unattemptedQuestions)) {
+          subjectData.unattemptedQuestions.forEach(q => {
+            if (q.subtopic && q.subtopic.trim()) {
+              const key = `${subjectName}:${q.subtopic.trim()}`;
+              if (subtopicMap[key]) {
+                const { topicName, subtopicName } = subtopicMap[key];
+                const countKey = `${subjectName}:${topicName}:${subtopicName}`;
+                if (!counts[countKey]) {
+                  counts[countKey] = { negative: 0, unattempted: 0 };
+                }
+                counts[countKey].unattempted += 1;
+              }
+            }
+          });
+        }
+      });
+    });
+
+    // Reset all counts for this student first
+    await StudentTopicStatus.updateMany(
+      { studentId },
+      { $set: { negativeCount: 0, unattemptedCount: 0 } }
+    );
+
+    // Update counts in database
+    for (const [key, count] of Object.entries(counts)) {
+      const [subject, topicName, subtopicName] = key.split(':');
+      
+      // Update or create StudentTopicStatus
+      await StudentTopicStatus.findOneAndUpdate(
+        { studentId, subject, topicName, subtopicName },
+        {
+          $set: {
+            negativeCount: count.negative,
+            unattemptedCount: count.unattempted
+          }
+        },
+        { upsert: true, new: true }
+      );
+    }
+  } catch (error) {
+    console.error('Error updating subtopic counts:', error);
+    // Don't throw - this is a background operation
+  }
+};
 
 // Get all results for a student
 router.get('/student/:studentId', async (req, res) => {
@@ -36,6 +139,14 @@ router.post('/', async (req, res) => {
     await result.save();
     await result.populate('studentId', 'rollNumber name batch');
     await result.populate('testId', 'testName testDate maxMarks');
+    
+    // Update subtopic counts in background
+    if (result.studentId) {
+      updateSubtopicCounts(result.studentId).catch(err => {
+        console.error('Background count update failed:', err);
+      });
+    }
+    
     res.status(201).json(result);
   } catch (error) {
     if (error.code === 11000) {
@@ -56,6 +167,14 @@ router.put('/:id', async (req, res) => {
     if (!result) {
       return res.status(404).json({ error: 'Result not found' });
     }
+    
+    // Update subtopic counts in background
+    if (result.studentId) {
+      updateSubtopicCounts(result.studentId).catch(err => {
+        console.error('Background count update failed:', err);
+      });
+    }
+    
     res.json(result);
   } catch (error) {
     res.status(400).json({ error: error.message });

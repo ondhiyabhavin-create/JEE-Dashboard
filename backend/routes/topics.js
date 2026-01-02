@@ -26,6 +26,34 @@ router.get('/subject/:subject', async (req, res) => {
   }
 });
 
+// Get all subtopics grouped by subject (for dropdowns)
+router.get('/subtopics/grouped', async (req, res) => {
+  try {
+    const topics = await Topic.find().sort({ subject: 1, name: 1 });
+    
+    const grouped = {
+      Physics: [],
+      Chemistry: [],
+      Mathematics: []
+    };
+
+    topics.forEach(topic => {
+      topic.subtopics.forEach(subtopic => {
+        grouped[topic.subject].push({
+          topicName: topic.name,
+          subtopicName: subtopic.name,
+          _id: subtopic._id.toString()
+        });
+      });
+    });
+
+    res.json({ success: true, data: grouped });
+  } catch (error) {
+    console.error('Get grouped subtopics error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Create a new topic
 router.post('/', async (req, res) => {
   try {
