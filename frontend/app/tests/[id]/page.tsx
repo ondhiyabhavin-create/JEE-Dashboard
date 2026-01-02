@@ -148,7 +148,21 @@ export default function TestDetailPage() {
     try {
       const response = await questionRecordsApi.getByResult(selectedResult._id);
       if (response.data?.success && response.data.data) {
-        setResultQuestions(response.data.data);
+        // Create a new object reference to ensure React detects the change
+        setResultQuestions({
+          Physics: { 
+            negative: [...(response.data.data.Physics?.negative || [])], 
+            unattempted: [...(response.data.data.Physics?.unattempted || [])] 
+          },
+          Chemistry: { 
+            negative: [...(response.data.data.Chemistry?.negative || [])], 
+            unattempted: [...(response.data.data.Chemistry?.unattempted || [])] 
+          },
+          Mathematics: { 
+            negative: [...(response.data.data.Mathematics?.negative || [])], 
+            unattempted: [...(response.data.data.Mathematics?.unattempted || [])] 
+          }
+        });
       }
     } catch (error: any) {
       console.error('Failed to load questions:', error);
@@ -352,7 +366,7 @@ export default function TestDetailPage() {
         : selectedResult.testId._id || selectedResult.testId.toString();
 
       // Use simple API to add question
-      const response = await questionRecordsApi.add({
+      await questionRecordsApi.add({
         studentId,
         testId,
         subject,
@@ -361,15 +375,15 @@ export default function TestDetailPage() {
         subtopic: questionData.subtopic.trim()
       });
 
-      // Show success notification
-      success('Question added successfully!');
-      
-      // Reload questions for this result
-      await loadQuestionsForResult();
-      
-      // Reset form
+      // Reset form first
       setEditingQuestion(null);
       setQuestionData({ questionNumber: '', subtopic: '' });
+      
+      // Reload questions for this result - this will update the UI
+      await loadQuestionsForResult();
+      
+      // Show success notification after state update
+      success('Question added successfully!');
     } catch (error: any) {
       const errorMsg = error.response?.data?.error || error.message;
       if (errorMsg.includes('already recorded')) {
@@ -399,11 +413,11 @@ export default function TestDetailPage() {
     try {
       await questionRecordsApi.delete(questionId);
       
-      // Show success notification
-      success('Question deleted successfully!');
-      
-      // Reload questions
+      // Reload questions first - this will update the UI
       await loadQuestionsForResult();
+      
+      // Show success notification after state update
+      success('Question deleted successfully!');
     } catch (error: any) {
       console.error('Failed to delete question:', error);
       showError('Failed to delete question: ' + (error.response?.data?.error || error.message));

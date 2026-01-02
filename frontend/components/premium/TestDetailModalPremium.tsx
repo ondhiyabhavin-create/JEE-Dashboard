@@ -156,12 +156,29 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
       console.log('✅ Updated result data:', updatedResultData);
       console.log('✅ Physics negativeQuestions:', updatedResultData.physics?.negativeQuestions);
       
-      // Update current result - force a new object reference for React to detect change
-      setCurrentResult({ ...updatedResultData });
+      // Update current result - ensure nested objects are also new references
+      setCurrentResult({
+        ...updatedResultData,
+        physics: updatedResultData.physics ? {
+          ...updatedResultData.physics,
+          negativeQuestions: updatedResultData.physics.negativeQuestions ? [...updatedResultData.physics.negativeQuestions] : [],
+          unattemptedQuestions: updatedResultData.physics.unattemptedQuestions ? [...updatedResultData.physics.unattemptedQuestions] : []
+        } : updatedResultData.physics,
+        chemistry: updatedResultData.chemistry ? {
+          ...updatedResultData.chemistry,
+          negativeQuestions: updatedResultData.chemistry.negativeQuestions ? [...updatedResultData.chemistry.negativeQuestions] : [],
+          unattemptedQuestions: updatedResultData.chemistry.unattemptedQuestions ? [...updatedResultData.chemistry.unattemptedQuestions] : []
+        } : updatedResultData.chemistry,
+        maths: updatedResultData.maths ? {
+          ...updatedResultData.maths,
+          negativeQuestions: updatedResultData.maths.negativeQuestions ? [...updatedResultData.maths.negativeQuestions] : [],
+          unattemptedQuestions: updatedResultData.maths.unattemptedQuestions ? [...updatedResultData.maths.unattemptedQuestions] : []
+        } : updatedResultData.maths
+      });
       setEditingQuestion(null);
       setQuestionData({ questionNumber: '', subtopic: '' });
       
-      // Show success notification immediately
+      // Show success notification after state update
       success('Question added successfully!');
       
       // Refresh counts in background (don't wait - let it run async)
@@ -220,10 +237,27 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
       console.log('✅ Delete response:', updatedResultData);
       console.log('✅ Physics negativeQuestions after delete:', updatedResultData.physics?.negativeQuestions);
       
-      // Update current result - force a new object reference for React to detect change
-      setCurrentResult({ ...updatedResultData });
+      // Update current result - ensure nested objects are also new references
+      setCurrentResult({
+        ...updatedResultData,
+        physics: updatedResultData.physics ? {
+          ...updatedResultData.physics,
+          negativeQuestions: updatedResultData.physics.negativeQuestions ? [...updatedResultData.physics.negativeQuestions] : [],
+          unattemptedQuestions: updatedResultData.physics.unattemptedQuestions ? [...updatedResultData.physics.unattemptedQuestions] : []
+        } : updatedResultData.physics,
+        chemistry: updatedResultData.chemistry ? {
+          ...updatedResultData.chemistry,
+          negativeQuestions: updatedResultData.chemistry.negativeQuestions ? [...updatedResultData.chemistry.negativeQuestions] : [],
+          unattemptedQuestions: updatedResultData.chemistry.unattemptedQuestions ? [...updatedResultData.chemistry.unattemptedQuestions] : []
+        } : updatedResultData.chemistry,
+        maths: updatedResultData.maths ? {
+          ...updatedResultData.maths,
+          negativeQuestions: updatedResultData.maths.negativeQuestions ? [...updatedResultData.maths.negativeQuestions] : [],
+          unattemptedQuestions: updatedResultData.maths.unattemptedQuestions ? [...updatedResultData.maths.unattemptedQuestions] : []
+        } : updatedResultData.maths
+      });
       
-      // Show success notification immediately
+      // Show success notification after state update
       success('Question deleted successfully!');
       
       // Refresh counts in background (don't wait - let it run async)
