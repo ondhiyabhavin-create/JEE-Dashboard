@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import CountUp from '@/components/CountUp';
 import { formatDate, formatPercentage } from '@/lib/utils';
-import { resultsApi, syllabusApi, studentTopicStatusApi } from '@/lib/api';
+import { resultsApi, syllabusApi, studentTopicStatusApi, questionRecordsApi } from '@/lib/api';
 import SubtopicSelector from '@/components/SubtopicSelector';
 import { useToast } from '@/hooks/useToast';
 import { ToastContainer } from '@/components/ui/toast';
@@ -32,18 +32,60 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
   const [questionData, setQuestionData] = useState({ questionNumber: '', subtopic: '' });
   const [currentResult, setCurrentResult] = useState(result);
   const { toasts, success, error: showError, warning: showWarning, removeToast } = useToast();
-  const [deleteQuestionConfirm, setDeleteQuestionConfirm] = useState<{ type: string; subject: string; index: number } | null>(null);
+  const [deleteQuestionConfirm, setDeleteQuestionConfirm] = useState<{ type: string; subject: string; questionId: string } | null>(null);
   const [groupedSubtopics, setGroupedSubtopics] = useState<{
     Physics: Array<{ topicName: string; subtopicName: string; _id: string }>;
     Chemistry: Array<{ topicName: string; subtopicName: string; _id: string }>;
     Mathematics: Array<{ topicName: string; subtopicName: string; _id: string }>;
   }>({ Physics: [], Chemistry: [], Mathematics: [] });
+  const [resultQuestions, setResultQuestions] = useState<{
+    Physics: { negative: Array<{ questionNumber: number; subtopic: string; _id: string }>; unattempted: Array<{ questionNumber: number; subtopic: string; _id: string }> };
+    Chemistry: { negative: Array<{ questionNumber: number; subtopic: string; _id: string }>; unattempted: Array<{ questionNumber: number; subtopic: string; _id: string }> };
+    Mathematics: { negative: Array<{ questionNumber: number; subtopic: string; _id: string }>; unattempted: Array<{ questionNumber: number; subtopic: string; _id: string }> };
+  }>({
+    Physics: { negative: [], unattempted: [] },
+    Chemistry: { negative: [], unattempted: [] },
+    Mathematics: { negative: [], unattempted: [] }
+  });
+  const [questionsUpdateKey, setQuestionsUpdateKey] = useState(0);
+
+  // Load questions for the result
+  const loadQuestionsForResult = async (resultId?: string) => {
+    const idToUse = resultId || currentResult?._id;
+    if (!idToUse) return;
+    
+    try {
+      const response = await questionRecordsApi.getByResult(idToUse);
+      if (response.data?.success && response.data.data) {
+        setResultQuestions({
+          Physics: { 
+            negative: [...(response.data.data.Physics?.negative || [])], 
+            unattempted: [...(response.data.data.Physics?.unattempted || [])] 
+          },
+          Chemistry: { 
+            negative: [...(response.data.data.Chemistry?.negative || [])], 
+            unattempted: [...(response.data.data.Chemistry?.unattempted || [])] 
+          },
+          Mathematics: { 
+            negative: [...(response.data.data.Mathematics?.negative || [])], 
+            unattempted: [...(response.data.data.Mathematics?.unattempted || [])] 
+          }
+        });
+        setQuestionsUpdateKey(prev => prev + 1);
+      }
+    } catch (error: any) {
+      console.error('Failed to load questions:', error);
+    }
+  };
 
   // Update local state when result prop changes
   useEffect(() => {
     setCurrentResult(result);
     setRemarks(result.remarks || '');
-  }, [result]);
+    if (result?._id) {
+      loadQuestionsForResult(result._id);
+    }
+  }, [result?._id]);
 
   // Fetch subtopics on mount
   useEffect(() => {
@@ -105,172 +147,147 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
       return;
     }
 
-    // Create unique key for this button
     const buttonKey = `${type}-${subject}`;
     setSavingButton(buttonKey);
     setIsSaving(true);
     
     try {
-      const subjectKey = subject.toLowerCase() as 'physics' | 'chemistry' | 'maths';
-      const currentData = currentResult[subjectKey] || {};
-      const questions = currentData[`${type}Questions`] || [];
-      
-      // Check for duplicate question
       const questionNum = parseInt(questionData.questionNumber);
-      const isDuplicate = questions.some((q: any) => 
-        q.questionNumber === questionNum && q.subtopic === questionData.subtopic.trim()
-      );
-      
-      if (isDuplicate) {
-        setSavingButton(null);
-        setIsSaving(false);
-        showWarning('This question is already added');
-        return;
-      }
-      
-      const updatedQuestions = [...questions, {
+      const studentId = typeof currentResult.studentId === 'string' 
+        ? currentResult.studentId 
+        : currentResult.studentId._id || currentResult.studentId.toString();
+      const testId = typeof currentResult.testId === 'string' 
+        ? currentResult.testId 
+        : currentResult.testId._id || currentResult.testId.toString();
+
+      // Use questionRecordsApi to add question
+      const addResponse = await questionRecordsApi.add({
+        studentId,
+        testId,
+        subject,
+        type,
         questionNumber: questionNum,
         subtopic: questionData.subtopic.trim()
-      }];
-
-      const updateData = {
-        [subjectKey]: {
-          ...currentData,
-          [`${type}Questions`]: updatedQuestions
-        }
-      };
-
-      const response = await resultsApi.update(currentResult._id, updateData);
-      
-      console.log('✅ Update response:', response);
-      console.log('✅ Update response.data:', response.data);
-      
-      // Handle response - axios wraps it, so response.data is the actual result
-      const updatedResultData = response.data;
-      
-      // Ensure we have the updated data
-      if (!updatedResultData) {
-        throw new Error('No data returned from server');
-      }
-      
-      console.log('✅ Updated result data:', updatedResultData);
-      console.log('✅ Physics negativeQuestions:', updatedResultData.physics?.negativeQuestions);
-      
-      // Update current result - ensure nested objects are also new references
-      setCurrentResult({
-        ...updatedResultData,
-        physics: updatedResultData.physics ? {
-          ...updatedResultData.physics,
-          negativeQuestions: updatedResultData.physics.negativeQuestions ? [...updatedResultData.physics.negativeQuestions] : [],
-          unattemptedQuestions: updatedResultData.physics.unattemptedQuestions ? [...updatedResultData.physics.unattemptedQuestions] : []
-        } : updatedResultData.physics,
-        chemistry: updatedResultData.chemistry ? {
-          ...updatedResultData.chemistry,
-          negativeQuestions: updatedResultData.chemistry.negativeQuestions ? [...updatedResultData.chemistry.negativeQuestions] : [],
-          unattemptedQuestions: updatedResultData.chemistry.unattemptedQuestions ? [...updatedResultData.chemistry.unattemptedQuestions] : []
-        } : updatedResultData.chemistry,
-        maths: updatedResultData.maths ? {
-          ...updatedResultData.maths,
-          negativeQuestions: updatedResultData.maths.negativeQuestions ? [...updatedResultData.maths.negativeQuestions] : [],
-          unattemptedQuestions: updatedResultData.maths.unattemptedQuestions ? [...updatedResultData.maths.unattemptedQuestions] : []
-        } : updatedResultData.maths
       });
+      
+      // Optimistically update the UI immediately
+      if (addResponse.data?.success && addResponse.data.data) {
+        const newQuestion = {
+          questionNumber: questionNum,
+          subtopic: questionData.subtopic.trim(),
+          _id: addResponse.data.data._id || `temp-${Date.now()}`
+        };
+        
+        setResultQuestions(prev => {
+          const subjectKey = subject as keyof typeof prev;
+          const currentSubject = prev[subjectKey] || { negative: [], unattempted: [] };
+          const newState = {
+            ...prev,
+            [subjectKey]: {
+              ...currentSubject,
+              [type]: [...(currentSubject[type] || []), newQuestion]
+            }
+          };
+          return newState;
+        });
+        setQuestionsUpdateKey(prev => prev + 1);
+      }
+
+      // Reset form
       setEditingQuestion(null);
       setQuestionData({ questionNumber: '', subtopic: '' });
       
-      // Show success notification after state update
+      // Show success notification immediately
       success('Question added successfully!');
       
-      // Refresh counts in background (don't wait - let it run async)
-      if (updatedResultData.studentId) {
-        // Get the actual studentId - could be string or object
-        const studentId = typeof updatedResultData.studentId === 'string' 
-          ? updatedResultData.studentId 
-          : updatedResultData.studentId._id || updatedResultData.studentId.toString();
-        
-        if (studentId) {
-          studentTopicStatusApi.refreshCounts(studentId).catch((err: any) => {
-            console.error('Failed to refresh counts:', err);
-            // Don't show error to user - counts will update eventually
-          });
-        }
+      // Reload questions from server to ensure consistency (in background)
+      setTimeout(async () => {
+        await loadQuestionsForResult();
+      }, 200);
+      
+      // Refresh counts in background
+      if (studentId) {
+        studentTopicStatusApi.refreshCounts(studentId).catch((err: any) => {
+          console.error('Failed to refresh counts:', err);
+        });
       }
       
       // Notify parent component if callback provided
       if (onUpdate) onUpdate();
     } catch (error: any) {
-      console.error('Failed to add question:', error);
-      showError('Failed to add question: ' + (error.response?.data?.error || error.message));
+      const errorMsg = error.response?.data?.error || error.message;
+      if (errorMsg.includes('already recorded')) {
+        showWarning('This question is already added');
+      } else {
+        showError('Failed to add question: ' + errorMsg);
+      }
     } finally {
       setIsSaving(false);
       setSavingButton(null);
     }
   };
 
-  const handleDeleteQuestion = async (type: 'unattempted' | 'negative', subject: string, index: number) => {
-    setDeleteQuestionConfirm({ type, subject, index });
+  const handleDeleteQuestion = async (type: 'unattempted' | 'negative', subject: string, questionId: string) => {
+    setDeleteQuestionConfirm({ type, subject, questionId });
   };
 
   const confirmDeleteQuestion = async () => {
     if (!deleteQuestionConfirm) return;
-    const { type, subject, index } = deleteQuestionConfirm;
+    const { questionId } = deleteQuestionConfirm;
     setDeleteQuestionConfirm(null);
+
+    if (!questionId) return;
 
     setIsSaving(true);
     try {
-      const subjectKey = subject.toLowerCase() as 'physics' | 'chemistry' | 'maths';
-      const currentData = currentResult[subjectKey] || {};
-      const questions = currentData[`${type}Questions`] || [];
+      // Optimistically remove from UI
+      const questionToRemove = Object.values(resultQuestions).flatMap(subj => 
+        [...(subj.negative || []), ...(subj.unattempted || [])]
+      ).find(q => q._id === questionId);
       
-      const updatedQuestions = questions.filter((_: any, i: number) => i !== index);
-
-      const updateData = {
-        [subjectKey]: {
-          ...currentData,
-          [`${type}Questions`]: updatedQuestions
+      if (questionToRemove) {
+        const subjectKey = Object.keys(resultQuestions).find(key => {
+          const subj = resultQuestions[key as keyof typeof resultQuestions];
+          return subj.negative.some(q => q._id === questionId) || 
+                 subj.unattempted.some(q => q._id === questionId);
+        }) as keyof typeof resultQuestions;
+        
+        if (subjectKey) {
+          const type = resultQuestions[subjectKey].negative.some(q => q._id === questionId) 
+            ? 'negative' : 'unattempted';
+          
+          setResultQuestions(prev => {
+            const newState = {
+              ...prev,
+              [subjectKey]: {
+                ...prev[subjectKey],
+                [type]: prev[subjectKey][type].filter(q => q._id !== questionId)
+              }
+            };
+            return newState;
+          });
+          setQuestionsUpdateKey(prev => prev + 1);
         }
-      };
-
-      const response = await resultsApi.update(currentResult._id, updateData);
-      const updatedResultData = response.data;
+      }
       
-      console.log('✅ Delete response:', updatedResultData);
-      console.log('✅ Physics negativeQuestions after delete:', updatedResultData.physics?.negativeQuestions);
+      await questionRecordsApi.delete(questionId);
       
-      // Update current result - ensure nested objects are also new references
-      setCurrentResult({
-        ...updatedResultData,
-        physics: updatedResultData.physics ? {
-          ...updatedResultData.physics,
-          negativeQuestions: updatedResultData.physics.negativeQuestions ? [...updatedResultData.physics.negativeQuestions] : [],
-          unattemptedQuestions: updatedResultData.physics.unattemptedQuestions ? [...updatedResultData.physics.unattemptedQuestions] : []
-        } : updatedResultData.physics,
-        chemistry: updatedResultData.chemistry ? {
-          ...updatedResultData.chemistry,
-          negativeQuestions: updatedResultData.chemistry.negativeQuestions ? [...updatedResultData.chemistry.negativeQuestions] : [],
-          unattemptedQuestions: updatedResultData.chemistry.unattemptedQuestions ? [...updatedResultData.chemistry.unattemptedQuestions] : []
-        } : updatedResultData.chemistry,
-        maths: updatedResultData.maths ? {
-          ...updatedResultData.maths,
-          negativeQuestions: updatedResultData.maths.negativeQuestions ? [...updatedResultData.maths.negativeQuestions] : [],
-          unattemptedQuestions: updatedResultData.maths.unattemptedQuestions ? [...updatedResultData.maths.unattemptedQuestions] : []
-        } : updatedResultData.maths
-      });
-      
-      // Show success notification after state update
+      // Show success notification immediately
       success('Question deleted successfully!');
       
-      // Refresh counts in background (don't wait - let it run async)
-      if (updatedResultData.studentId) {
-        // Get the actual studentId - could be string or object
-        const studentId = typeof updatedResultData.studentId === 'string' 
-          ? updatedResultData.studentId 
-          : updatedResultData.studentId._id || updatedResultData.studentId.toString();
-        
+      // Reload questions from server to ensure consistency (in background)
+      setTimeout(async () => {
+        await loadQuestionsForResult();
+      }, 200);
+      
+      // Refresh counts in background
+      if (currentResult.studentId) {
+        const studentId = typeof currentResult.studentId === 'string' 
+          ? currentResult.studentId 
+          : currentResult.studentId._id || currentResult.studentId.toString();
         if (studentId) {
           studentTopicStatusApi.refreshCounts(studentId).catch((err: any) => {
             console.error('Failed to refresh counts:', err);
-            // Don't show error to user - counts will update eventually
           });
         }
       }
@@ -463,33 +480,37 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
                           </Button>
                         )}
                       </div>
-                      {subjectData.unattemptedQuestions?.length > 0 ? (
-                        <div className="space-y-2">
-                          {subjectData.unattemptedQuestions.map((q: any, idx: number) => (
-                            <div
-                              key={idx}
-                              className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-lg border border-yellow-200 dark:border-yellow-800"
-                            >
-                              <div className="flex items-center gap-3">
-                                <Badge variant="outline" className="font-mono">
-                                  Q{q.questionNumber}
-                                </Badge>
-                                <span className="font-medium">{q.subtopic}</span>
-                              </div>
-                              <Button
-                                onClick={() => handleDeleteQuestion('unattempted', subject.name, idx)}
-                                size="sm"
-                                variant="ghost"
-                                className="text-destructive hover:text-destructive"
+                      {(() => {
+                        const _ = questionsUpdateKey;
+                        const questions = resultQuestions[subject.name as keyof typeof resultQuestions]?.unattempted || [];
+                        return questions.length > 0 ? (
+                          <div key={`unattempted-${subject.name}-${questionsUpdateKey}`} className="space-y-2">
+                            {questions.map((q) => (
+                              <div
+                                key={q._id}
+                                className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-lg border border-yellow-200 dark:border-yellow-800"
                               >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground text-center py-4">No unattempted questions recorded</p>
-                      )}
+                                <div className="flex items-center gap-3">
+                                  <Badge variant="outline" className="font-mono">
+                                    Q{q.questionNumber}
+                                  </Badge>
+                                  <span className="font-medium">{q.subtopic}</span>
+                                </div>
+                                <Button
+                                  onClick={() => handleDeleteQuestion('unattempted', subject.name, q._id)}
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p key={`unattempted-empty-${subject.name}-${questionsUpdateKey}`} className="text-sm text-muted-foreground text-center py-4">No unattempted questions recorded</p>
+                        );
+                      })()}
                     </div>
 
                     {/* Negative Questions Box */}
@@ -549,33 +570,37 @@ export default function TestDetailModalPremium({ result, student, onClose, onUpd
                           </Button>
                         )}
                       </div>
-                      {subjectData.negativeQuestions?.length > 0 ? (
-                        <div className="space-y-2">
-                          {subjectData.negativeQuestions.map((q: any, idx: number) => (
-                            <div
-                              key={idx}
-                              className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-lg border border-red-200 dark:border-red-800"
-                            >
-                              <div className="flex items-center gap-3">
-                                <Badge variant="destructive" className="font-mono">
-                                  Q{q.questionNumber}
-                                </Badge>
-                                <span className="font-medium">{q.subtopic}</span>
-                              </div>
-                              <Button
-                                onClick={() => handleDeleteQuestion('negative', subject.name, idx)}
-                                size="sm"
-                                variant="ghost"
-                                className="text-destructive hover:text-destructive"
+                      {(() => {
+                        const _ = questionsUpdateKey;
+                        const questions = resultQuestions[subject.name as keyof typeof resultQuestions]?.negative || [];
+                        return questions.length > 0 ? (
+                          <div key={`negative-${subject.name}-${questionsUpdateKey}`} className="space-y-2">
+                            {questions.map((q) => (
+                              <div
+                                key={q._id}
+                                className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-lg border border-red-200 dark:border-red-800"
                               >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground text-center py-4">No negative questions recorded</p>
-                      )}
+                                <div className="flex items-center gap-3">
+                                  <Badge variant="destructive" className="font-mono">
+                                    Q{q.questionNumber}
+                                  </Badge>
+                                  <span className="font-medium">{q.subtopic}</span>
+                                </div>
+                                <Button
+                                  onClick={() => handleDeleteQuestion('negative', subject.name, q._id)}
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p key={`negative-empty-${subject.name}-${questionsUpdateKey}`} className="text-sm text-muted-foreground text-center py-4">No negative questions recorded</p>
+                        );
+                      })()}
                     </div>
                   </CardContent>
                 </Card>
