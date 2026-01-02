@@ -26,6 +26,7 @@ interface StudentTopicStatus {
   subtopicName: string;
   status: 'Good' | 'Medium' | 'Bad' | 'Conceptual Backlog' | 'Solving Backlog' | null;
   negativeCount: number;
+  unattemptedCount?: number;
 }
 
 interface StudentTopicStatusTabProps {
