@@ -69,22 +69,6 @@ export default function TestDetailPage() {
   
   // Force re-render key to ensure UI updates
   const [questionsUpdateKey, setQuestionsUpdateKey] = useState(0);
-  
-  // Helper function to normalize subject name to match state keys
-  const normalizeSubjectKey = (subjectName: string): keyof typeof resultQuestions => {
-    // Map display names to state keys
-    if (subjectName === 'Mathematics' || subjectName === 'Maths') {
-      return 'Mathematics';
-    }
-    if (subjectName === 'Physics') {
-      return 'Physics';
-    }
-    if (subjectName === 'Chemistry') {
-      return 'Chemistry';
-    }
-    // Default fallback
-    return subjectName as keyof typeof resultQuestions;
-  };
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -172,8 +156,6 @@ export default function TestDetailPage() {
     
     try {
       const response = await questionRecordsApi.getByResult(idToUse);
-      console.log('📥 Load questions response:', response.data);
-      
       if (response.data?.success && response.data.data) {
         const newQuestions = {
           Physics: { 
@@ -401,7 +383,7 @@ export default function TestDetailPage() {
         ? selectedResult.testId 
         : selectedResult.testId._id || selectedResult.testId.toString();
 
-      // Use simple API to add question
+      // Use simple API to add question - use subject name directly (same as Physics/Chemistry)
       const addResponse = await questionRecordsApi.add({
         studentId,
         testId,
@@ -413,7 +395,7 @@ export default function TestDetailPage() {
       
       console.log('✅ Question added, response:', addResponse.data);
 
-      // Optimistically update the UI immediately
+      // Optimistically update the UI immediately - use subject name directly
       if (addResponse.data?.success && addResponse.data.data) {
         const newQuestion = {
           questionNumber: questionNum,
@@ -422,8 +404,7 @@ export default function TestDetailPage() {
         };
         
         setResultQuestions(prev => {
-          const subjectKey = normalizeSubjectKey(subject);
-          console.log(`🔄 Adding question to ${subjectKey} (from ${subject})`);
+          const subjectKey = subject as keyof typeof prev;
           const currentSubject = prev[subjectKey] || { negative: [], unattempted: [] };
           const newState = {
             ...prev,
@@ -960,9 +941,7 @@ export default function TestDetailPage() {
                           {(() => {
                             // Use the update key to force re-render
                             const _ = questionsUpdateKey;
-                            const subjectKey = normalizeSubjectKey(subject.name);
-                            const questions = resultQuestions[subjectKey]?.unattempted || [];
-                            console.log(`🔍 Rendering unattempted for ${subject.name} (key: ${subjectKey}):`, questions.length, 'questions', questions);
+                            const questions = resultQuestions[subject.name as keyof typeof resultQuestions]?.unattempted || [];
                             return questions.length > 0 ? (
                               <div key={`unattempted-${subject.name}-${questionsUpdateKey}`} className="space-y-2">
                                 {questions.map((q) => (
@@ -1062,9 +1041,7 @@ export default function TestDetailPage() {
                           {(() => {
                             // Use the update key to force re-render
                             const _ = questionsUpdateKey;
-                            const subjectKey = normalizeSubjectKey(subject.name);
-                            const questions = resultQuestions[subjectKey]?.negative || [];
-                            console.log(`🔍 Rendering negative for ${subject.name} (key: ${subjectKey}):`, questions.length, 'questions', questions);
+                            const questions = resultQuestions[subject.name as keyof typeof resultQuestions]?.negative || [];
                             return questions.length > 0 ? (
                               <div key={`negative-${subject.name}-${questionsUpdateKey}`} className="space-y-2">
                                 {questions.map((q) => (
