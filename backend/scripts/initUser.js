@@ -8,7 +8,7 @@ const usersToCreate = [
   {
     username: 'Vedant Ghuge',
     email: 'ghugevedant2005@gmail.com',
-    password: 'Vedant@123',
+    password: 'Admin@123',
     name: 'Vedant Ghuge'
   },
   {
@@ -34,9 +34,13 @@ async function initUsers() {
       });
       
       if (existingUser) {
-        console.log(`ℹ️  User already exists: ${userData.name}`);
+        // Update password if user exists
+        existingUser.password = userData.password;
+        await existingUser.save();
+        console.log(`✅ User password updated: ${userData.name}`);
         console.log(`   Username: ${existingUser.username}`);
-        console.log(`   Email: ${existingUser.email}\n`);
+        console.log(`   Email: ${existingUser.email}`);
+        console.log(`   New Password: ${userData.password}\n`);
         continue;
       }
 
@@ -54,7 +58,7 @@ async function initUsers() {
     console.log('Account 1:');
     console.log('  Username: Vedant Ghuge');
     console.log('  Email: ghugevedant2005@gmail.com');
-    console.log('  Password: Vedant@123');
+    console.log('  Password: Admin@123');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('Account 2:');
     console.log('  Username: Bhavin Ondhiya');
