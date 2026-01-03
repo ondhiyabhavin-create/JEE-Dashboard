@@ -32,7 +32,16 @@ export default function DashboardPage() {
       ]);
 
       const totalStudents = studentsRes.data.pagination.total;
-      const tests = testsRes.data;
+      // Handle both response formats: { tests: [...], pagination: {...} } or just [...]
+      const tests = Array.isArray(testsRes.data) 
+        ? testsRes.data 
+        : (testsRes.data?.tests || []);
+      
+      // Ensure tests is an array
+      if (!Array.isArray(tests)) {
+        console.error('Tests data is not an array:', testsRes.data);
+        throw new Error('Invalid tests data format');
+      }
       
       // Calculate total results
       let totalResults = 0;
