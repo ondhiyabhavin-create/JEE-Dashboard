@@ -66,13 +66,13 @@ export default function TestDetailPage() {
     Chemistry: { negative: [], unattempted: [] },
     Mathematics: { negative: [], unattempted: [] }
   });
-  
+
   // Force re-render key to ensure UI updates
   const [questionsUpdateKey, setQuestionsUpdateKey] = useState(0);
 
   useEffect(() => {
     const abortController = new AbortController();
-    
+
     const loadData = async () => {
       try {
         // Only show loader on initial mount
@@ -94,9 +94,9 @@ export default function TestDetailPage() {
         }
       }
     };
-    
+
     loadData();
-    
+
     return () => {
       abortController.abort(); // Cancel requests when component unmounts or testId changes
     };
@@ -106,22 +106,22 @@ export default function TestDetailPage() {
   const fetchSubtopics = async (signal?: AbortSignal) => {
     try {
       const response = await syllabusApi.getGroupedSubtopics();
-      
+
       // Axios wraps the response, so response.data is the actual response body
       // Backend returns: { success: true, data: { Physics: [], Chemistry: [], Mathematics: [] } }
       let data = null;
-      
+
       if (response.data) {
         // Check if it's the wrapped structure
         if (response.data.success === true && response.data.data) {
           data = response.data.data;
-        } 
+        }
         // Check if it's direct structure (shouldn't happen but just in case)
         else if (response.data.Physics || response.data.Chemistry || response.data.Mathematics) {
           data = response.data;
         }
       }
-      
+
       if (data) {
         setGroupedSubtopics(data);
       }
@@ -132,13 +132,13 @@ export default function TestDetailPage() {
 
   const fetchSubtopicCounts = useCallback(async () => {
     if (!selectedResult?.studentId) return;
-    
+
     try {
       // Don't show loading state - load silently in background
-      const studentId = typeof selectedResult.studentId === 'string' 
-        ? selectedResult.studentId 
+      const studentId = typeof selectedResult.studentId === 'string'
+        ? selectedResult.studentId
         : selectedResult.studentId._id || selectedResult.studentId.toString();
-      
+
       const response = await studentTopicStatusApi.getSubtopicCounts(studentId);
       if (response.data?.success && response.data.data) {
         setSubtopicCounts(response.data.data);
@@ -153,25 +153,25 @@ export default function TestDetailPage() {
   const loadQuestionsForResult = async (resultId?: string) => {
     const idToUse = resultId || selectedResult?._id;
     if (!idToUse) return;
-    
+
     try {
       const response = await questionRecordsApi.getByResult(idToUse);
       if (response.data?.success && response.data.data) {
         const newQuestions = {
-          Physics: { 
-            negative: [...(response.data.data.Physics?.negative || [])], 
-            unattempted: [...(response.data.data.Physics?.unattempted || [])] 
+          Physics: {
+            negative: [...(response.data.data.Physics?.negative || [])],
+            unattempted: [...(response.data.data.Physics?.unattempted || [])]
           },
-          Chemistry: { 
-            negative: [...(response.data.data.Chemistry?.negative || [])], 
-            unattempted: [...(response.data.data.Chemistry?.unattempted || [])] 
+          Chemistry: {
+            negative: [...(response.data.data.Chemistry?.negative || [])],
+            unattempted: [...(response.data.data.Chemistry?.unattempted || [])]
           },
-          Mathematics: { 
-            negative: [...(response.data.data.Mathematics?.negative || [])], 
-            unattempted: [...(response.data.data.Mathematics?.unattempted || [])] 
+          Mathematics: {
+            negative: [...(response.data.data.Mathematics?.negative || [])],
+            unattempted: [...(response.data.data.Mathematics?.unattempted || [])]
           }
         };
-        
+
         console.log('📝 Setting new questions:', newQuestions);
         // Create a new object reference to ensure React detects the change
         setResultQuestions(newQuestions);
@@ -232,10 +232,10 @@ export default function TestDetailPage() {
         testsApi.getById(testId),
         resultsApi.getByTest(testId, pageNum, 50), // Fetch specific page
       ]);
-      
+
       // Check if request was aborted
       if (signal?.aborted) return;
-      
+
       setTest(testRes.data);
       setAllResults(resultsRes.data.results); // Store for search
       setResults(resultsRes.data.results);
@@ -253,7 +253,7 @@ export default function TestDetailPage() {
     }
     // Note: Loading state is managed in the useEffect that calls this function
   };
-  
+
   // Fetch page of results
   const fetchPage = useCallback(async (pageNum: number) => {
     try {
@@ -267,7 +267,7 @@ export default function TestDetailPage() {
       showError('Failed to load results. Please try again.');
     }
   }, [testId, showError]);
-  
+
   // Fetch all results for search (only when needed)
   const fetchAllResultsForSearch = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -287,7 +287,7 @@ export default function TestDetailPage() {
       fetchAllResultsForSearch();
     }
   }, [search, allResults.length, fetchAllResultsForSearch]);
-  
+
   // Update paginated results when page changes (only when not searching)
   useEffect(() => {
     if (!search.trim() && page > 1) {
@@ -328,22 +328,22 @@ export default function TestDetailPage() {
     try {
       const response = await resultsApi.update(selectedResult._id, { remarks });
       const updatedResultData = response.data;
-      
+
       // Update selected result
       setSelectedResult(updatedResultData);
-      
+
       // Update the result in the results list without refetching all data
-      setResults(prevResults => 
-        prevResults.map(r => 
+      setResults(prevResults =>
+        prevResults.map(r =>
           r._id === selectedResult._id ? updatedResultData : r
         )
       );
-      setAllResults(prevAllResults => 
-        prevAllResults.map(r => 
+      setAllResults(prevAllResults =>
+        prevAllResults.map(r =>
           r._id === selectedResult._id ? updatedResultData : r
         )
       );
-      
+
       setIsEditingRemarks(false);
       success('Remarks saved successfully!');
     } catch (error: any) {
@@ -359,12 +359,12 @@ export default function TestDetailPage() {
       showWarning('Please select a student result first');
       return;
     }
-    
+
     if (!questionData.questionNumber || questionData.questionNumber.trim() === '') {
       showWarning('Please enter a question number');
       return;
     }
-    
+
     if (!questionData.subtopic || questionData.subtopic.trim() === '') {
       showWarning('Please select a subtopic from the dropdown');
       return;
@@ -373,14 +373,14 @@ export default function TestDetailPage() {
     const buttonKey = `${type}-${subject}`;
     setSavingButton(buttonKey);
     setIsSaving(true);
-    
+
     try {
       const questionNum = parseInt(questionData.questionNumber);
-      const studentId = typeof selectedResult.studentId === 'string' 
-        ? selectedResult.studentId 
+      const studentId = typeof selectedResult.studentId === 'string'
+        ? selectedResult.studentId
         : selectedResult.studentId._id || selectedResult.studentId.toString();
-      const testId = typeof selectedResult.testId === 'string' 
-        ? selectedResult.testId 
+      const testId = typeof selectedResult.testId === 'string'
+        ? selectedResult.testId
         : selectedResult.testId._id || selectedResult.testId.toString();
 
       // Use simple API to add question - use subject name directly (same as Physics/Chemistry)
@@ -392,7 +392,7 @@ export default function TestDetailPage() {
         questionNumber: questionNum,
         subtopic: questionData.subtopic.trim()
       });
-      
+
       console.log('✅ Question added, response:', addResponse.data);
 
       // Optimistically update the UI immediately - use subject name directly
@@ -402,7 +402,7 @@ export default function TestDetailPage() {
           subtopic: questionData.subtopic.trim(),
           _id: addResponse.data.data._id || `temp-${Date.now()}`
         };
-        
+
         setResultQuestions(prev => {
           const subjectKey = subject as keyof typeof prev;
           const currentSubject = prev[subjectKey] || { negative: [], unattempted: [] };
@@ -422,14 +422,21 @@ export default function TestDetailPage() {
       // Reset form
       setEditingQuestion(null);
       setQuestionData({ questionNumber: '', subtopic: '' });
-      
+
       // Show success notification immediately
       success('Question added successfully!');
-      
+
       // Reload questions from server to ensure consistency (in background)
       setTimeout(async () => {
         await loadQuestionsForResult(selectedResult._id);
       }, 200);
+
+      // Refresh counts in background
+      if (studentId) {
+        studentTopicStatusApi.refreshCounts(studentId).catch((err: any) => {
+          console.error('Failed to refresh counts:', err);
+        });
+      }
     } catch (error: any) {
       const errorMsg = error.response?.data?.error || error.message;
       if (errorMsg.includes('already recorded')) {
@@ -458,22 +465,22 @@ export default function TestDetailPage() {
     setIsSaving(true);
     try {
       // Find the question to remove optimistically
-      const questionToRemove = Object.values(resultQuestions).flatMap(subj => 
+      const questionToRemove = Object.values(resultQuestions).flatMap(subj =>
         [...(subj.negative || []), ...(subj.unattempted || [])]
       ).find(q => q._id === questionId);
-      
+
       // Optimistically remove from UI
       if (questionToRemove) {
         const subjectKey = Object.keys(resultQuestions).find(key => {
           const subj = resultQuestions[key as keyof typeof resultQuestions];
-          return subj.negative.some(q => q._id === questionId) || 
-                 subj.unattempted.some(q => q._id === questionId);
+          return subj.negative.some(q => q._id === questionId) ||
+            subj.unattempted.some(q => q._id === questionId);
         }) as keyof typeof resultQuestions;
-        
+
         if (subjectKey) {
-          const type = resultQuestions[subjectKey].negative.some(q => q._id === questionId) 
+          const type = resultQuestions[subjectKey].negative.some(q => q._id === questionId)
             ? 'negative' : 'unattempted';
-          
+
           setResultQuestions(prev => {
             const newState = {
               ...prev,
@@ -488,17 +495,29 @@ export default function TestDetailPage() {
           setQuestionsUpdateKey(prev => prev + 1);
         }
       }
-      
+
       const deleteResponse = await questionRecordsApi.delete(questionId);
       console.log('✅ Question deleted, response:', deleteResponse.data);
-      
+
       // Show success notification immediately
       success('Question deleted successfully!');
-      
+
       // Reload questions from server to ensure consistency (in background)
       setTimeout(async () => {
         await loadQuestionsForResult(selectedResult._id);
       }, 200);
+
+      // Refresh counts in background
+      if (selectedResult.studentId) {
+        const studentId = typeof selectedResult.studentId === 'string'
+          ? selectedResult.studentId
+          : selectedResult.studentId._id || selectedResult.studentId.toString();
+        if (studentId) {
+          studentTopicStatusApi.refreshCounts(studentId).catch((err: any) => {
+            console.error('Failed to refresh counts:', err);
+          });
+        }
+      }
     } catch (error: any) {
       console.error('Failed to delete question:', error);
       showError('Failed to delete question: ' + (error.response?.data?.error || error.message));
@@ -639,8 +658,8 @@ export default function TestDetailPage() {
                           <CountUp value={result.maths?.score || 0} decimals={0} />
                         </td>
                         <td className="p-3 text-center">
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             size="sm"
                             onClick={async () => {
                               try {
@@ -752,16 +771,16 @@ export default function TestDetailPage() {
                             const subjectCounts = subtopicCounts[subject] || {};
                             let totalNegative = 0;
                             let totalUnattempted = 0;
-                            
+
                             Object.values(subjectCounts).forEach((topicCounts) => {
                               Object.values(topicCounts).forEach((counts) => {
                                 totalNegative += counts.negative || 0;
                                 totalUnattempted += counts.unattempted || 0;
                               });
                             });
-                            
+
                             if (totalNegative === 0 && totalUnattempted === 0) return null;
-                            
+
                             return (
                               <div key={subject} className="p-4 bg-muted rounded-lg border">
                                 <h4 className="font-semibold mb-2">{subject}</h4>
@@ -837,7 +856,7 @@ export default function TestDetailPage() {
                   const attempted = (subjectData.right || 0) + (subjectData.wrong || 0);
                   const unattempted = subjectData.unattempted || 0;
                   const negative = subjectData.wrong || 0;
-                  
+
                   return (
                     <Card key={`${subject.name}-${selectedResult?._id || 'none'}`} className={`border-2 ${subject.borderColor}`}>
                       <CardHeader className={subject.bgColor}>
@@ -1133,10 +1152,10 @@ export default function TestDetailPage() {
           </div>
         </AnimatePresence>
       )}
-      
+
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onClose={removeToast} />
-      
+
       {/* Delete Question Confirmation Dialog */}
       <ConfirmDialog
         open={deleteQuestionConfirm !== null}

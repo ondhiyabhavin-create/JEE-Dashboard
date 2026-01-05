@@ -6,18 +6,9 @@ const StudentTopicStatus = require('../models/StudentTopicStatus');
 // Helper function to update subtopic counts (can be called synchronously or in background)
 const updateSubtopicCounts = async (studentId, waitForCompletion = false) => {
   try {
-    const subjects = ['physics', 'chemistry', 'maths'];
-    const subjectMap = {
-      'physics': 'Physics',
-      'chemistry': 'Chemistry',
-      'maths': 'Mathematics'
-    };
-
-    // Get all test results for this student
-    const allResults = await StudentTestResult.find({ studentId }).lean(); // Use lean() for better performance
-
     // Get all syllabus to build a subtopic lookup map
     const Syllabus = require('../models/Syllabus');
+    const QuestionRecord = require('../models/QuestionRecord');
     const allSyllabus = await Syllabus.find().lean(); // Use lean() for better performance
     
     // Build a map: subject -> subtopicName -> { topicName, subtopicName }
@@ -35,48 +26,32 @@ const updateSubtopicCounts = async (studentId, waitForCompletion = false) => {
       });
     });
 
-    // Count occurrences across all tests
+    // Get all question records for this student from QuestionRecord collection
+    const allQuestions = await QuestionRecord.find({ studentId }).lean();
+
+    // Count occurrences across all questions
     const counts = {};
 
-    allResults.forEach(testResult => {
-      subjects.forEach(subjectKey => {
-        const subjectName = subjectMap[subjectKey];
-        const subjectData = testResult[subjectKey] || {};
-
-        // Count negative questions
-        if (subjectData.negativeQuestions && Array.isArray(subjectData.negativeQuestions)) {
-          subjectData.negativeQuestions.forEach(q => {
-            if (q.subtopic && q.subtopic.trim()) {
-              const key = `${subjectName}:${q.subtopic.trim()}`;
-              if (subtopicMap[key]) {
-                const { topicName, subtopicName } = subtopicMap[key];
-                const countKey = `${subjectName}:${topicName}:${subtopicName}`;
-                if (!counts[countKey]) {
-                  counts[countKey] = { negative: 0, unattempted: 0 };
-                }
-                counts[countKey].negative += 1;
-              }
-            }
-          });
+    allQuestions.forEach(question => {
+      const { subject, type, subtopic } = question;
+      
+      if (subtopic && subtopic.trim()) {
+        const key = `${subject}:${subtopic.trim()}`;
+        if (subtopicMap[key]) {
+          const { topicName, subtopicName } = subtopicMap[key];
+          const countKey = `${subject}:${topicName}:${subtopicName}`;
+          if (!counts[countKey]) {
+            counts[countKey] = { negative: 0, unattempted: 0 };
+          }
+          
+          // Increment the appropriate counter based on question type
+          if (type === 'negative') {
+            counts[countKey].negative += 1;
+          } else if (type === 'unattempted') {
+            counts[countKey].unattempted += 1;
+          }
         }
-
-        // Count unattempted questions
-        if (subjectData.unattemptedQuestions && Array.isArray(subjectData.unattemptedQuestions)) {
-          subjectData.unattemptedQuestions.forEach(q => {
-            if (q.subtopic && q.subtopic.trim()) {
-              const key = `${subjectName}:${q.subtopic.trim()}`;
-              if (subtopicMap[key]) {
-                const { topicName, subtopicName } = subtopicMap[key];
-                const countKey = `${subjectName}:${topicName}:${subtopicName}`;
-                if (!counts[countKey]) {
-                  counts[countKey] = { negative: 0, unattempted: 0 };
-                }
-                counts[countKey].unattempted += 1;
-              }
-            }
-          });
-        }
-      });
+      }
     });
 
     // Reset all counts for this student first
