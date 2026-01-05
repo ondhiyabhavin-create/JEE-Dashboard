@@ -55,8 +55,16 @@ export default function AddTestResultModal({ open, onOpenChange, studentId, onSu
   const fetchTests = async () => {
     try {
       setLoadingTests(true);
-      const response = await testsApi.getAll();
-      setTests(response.data);
+      const response = await testsApi.getAll(1, 1000); // Fetch up to 1000 tests for dropdown
+      // Handle both array (legacy?) and object with tests property (current)
+      if (Array.isArray(response.data)) {
+        setTests(response.data);
+      } else if (response.data && Array.isArray(response.data.tests)) {
+        setTests(response.data.tests);
+      } else {
+        console.error('Unexpected tests API response format:', response.data);
+        setTests([]);
+      }
     } catch (err: any) {
       console.error('Failed to fetch tests:', err);
     } finally {
