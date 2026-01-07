@@ -4,7 +4,7 @@ import axios from 'axios';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 
   (typeof window !== 'undefined' && window.location.hostname === 'localhost' 
     ? 'http://localhost:5001/api' 
-    : 'https://qr9vevhu9j.execute-api.us-east-1.amazonaws.com/dev/api');
+    : 'https://z7wabzzky9.execute-api.us-west-2.amazonaws.com/dev/api');
 
 // Log the API URL being used (only in browser)
 if (typeof window !== 'undefined') {
